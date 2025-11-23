@@ -1,5 +1,20 @@
 import Donation from "../models/donation.model.js";
 import Project from "../models/project.model.js";
+import { deleteImage, uploadImage } from "../lib/imagekit.js";
+
+const createHttpError = (status, message) => {
+        const error = new Error(message);
+        error.status = status;
+        return error;
+};
+
+const uploadProjectImage = async (image) => {
+        if (!image || typeof image !== "string" || !image.startsWith("data:")) {
+                throw createHttpError(400, "صيغة صورة المشروع غير صالحة");
+        }
+
+        return uploadImage(image, "projects");
+};
 
 const buildTotalsMap = (totals = []) => {
         const map = new Map();
@@ -27,14 +42,17 @@ const enrichProject = (project, totalsMap) => {
 
 export const createProject = async (req, res) => {
         try {
-                const { title, shortDescription, description, category, imageUrl, targetAmount, status, isActive } = req.body;
+                const { title, shortDescription, description, category, image, targetAmount, status, isActive } = req.body;
+
+                const uploadResult = await uploadProjectImage(image);
 
                 const project = await Project.create({
                         title,
                         shortDescription,
                         description,
                         category,
-                        imageUrl,
+                        imageUrl: uploadResult.url,
+                        imageFileId: uploadResult.fileId,
                         targetAmount,
                         status,
                         isActive,
@@ -42,26 +60,54 @@ export const createProject = async (req, res) => {
 
                 res.status(201).json(project);
         } catch (error) {
-                console.log("Error creating project", error.message);
-                res.status(500).json({ message: "تعذّر إنشاء المشروع", error: error.message });
+                const status = error.status || 500;
+                if (status >= 500) {
+                        console.log("Error creating project", error.message);
+                }
+                res.status(status).json({ message: "تعذّر إنشاء المشروع", error: error.message });
         }
 };
 
 export const updateProject = async (req, res) => {
         try {
-                const project = await Project.findByIdAndUpdate(req.params.id, req.body, {
-                        new: true,
-                        runValidators: true,
-                });
+                const project = await Project.findById(req.params.id);
 
                 if (!project) {
                         return res.status(404).json({ message: "المشروع غير موجود" });
                 }
 
+                const { image, ...updates } = req.body || {};
+
+                if (image !== undefined) {
+                        if (image) {
+                                const uploadResult = await uploadProjectImage(image);
+                                if (project.imageFileId) {
+                                        await deleteImage(project.imageFileId);
+                                }
+                                project.imageUrl = uploadResult.url;
+                                project.imageFileId = uploadResult.fileId;
+                        } else {
+                                if (project.imageFileId) {
+                                        await deleteImage(project.imageFileId);
+                                }
+                                project.imageUrl = "";
+                                project.imageFileId = null;
+                        }
+                }
+
+                Object.entries(updates).forEach(([key, value]) => {
+                        project[key] = value;
+                });
+
+                await project.save();
+
                 res.json(project);
         } catch (error) {
-                console.log("Error updating project", error.message);
-                res.status(500).json({ message: "تعذّر تحديث المشروع", error: error.message });
+                const status = error.status || 500;
+                if (status >= 500) {
+                        console.log("Error updating project", error.message);
+                }
+                res.status(status).json({ message: "تعذّر تحديث المشروع", error: error.message });
         }
 };
 

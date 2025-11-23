@@ -11,12 +11,28 @@ const AdminPage = () => {
                 shortDescription: "",
                 description: "",
                 category: "المشاريع العامة",
-                imageUrl: "",
+                image: "",
+                imagePreview: "",
                 targetAmount: 0,
                 status: "active",
                 isActive: true,
         });
-        const [paymentForm, setPaymentForm] = useState({ name: "", accountNumber: "", imageUrl: "", isActive: true });
+        const [paymentForm, setPaymentForm] = useState({
+                name: "",
+                accountNumber: "",
+                image: "",
+                imagePreview: "",
+                isActive: true,
+        });
+
+        const readFileAsDataURL = (file) => {
+                return new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onloadend = () => resolve(typeof reader.result === "string" ? reader.result : "");
+                        reader.onerror = reject;
+                        reader.readAsDataURL(file);
+                });
+        };
 
         const loadData = async () => {
                 try {
@@ -37,17 +53,37 @@ const AdminPage = () => {
                 loadData();
         }, []);
 
+        const handleProjectImageChange = async (event) => {
+                const file = event.target.files?.[0];
+                if (!file) return;
+
+                const base64 = await readFileAsDataURL(file);
+                setProjectForm((previous) => ({ ...previous, image: base64, imagePreview: base64 }));
+        };
+
+        const handlePaymentImageChange = async (event) => {
+                const file = event.target.files?.[0];
+                if (!file) return;
+
+                const base64 = await readFileAsDataURL(file);
+                setPaymentForm((previous) => ({ ...previous, image: base64, imagePreview: base64 }));
+        };
+
         const handleProjectSubmit = async (e) => {
                 e.preventDefault();
                 try {
-                        await apiClient.post("/projects", { ...projectForm, targetAmount: Number(projectForm.targetAmount) });
+                        await apiClient.post("/projects", {
+                                ...projectForm,
+                                targetAmount: Number(projectForm.targetAmount),
+                        });
                         toast.success("تمت إضافة المشروع بنجاح");
                         setProjectForm({
                                 title: "",
                                 shortDescription: "",
                                 description: "",
                                 category: "المشاريع العامة",
-                                imageUrl: "",
+                                image: "",
+                                imagePreview: "",
                                 targetAmount: 0,
                                 status: "active",
                                 isActive: true,
@@ -73,7 +109,7 @@ const AdminPage = () => {
                 try {
                         await apiClient.post("/payment-methods", paymentForm);
                         toast.success("تمت إضافة وسيلة الدفع");
-                        setPaymentForm({ name: "", accountNumber: "", imageUrl: "", isActive: true });
+                        setPaymentForm({ name: "", accountNumber: "", image: "", imagePreview: "", isActive: true });
                         loadData();
                 } catch (error) {
                         toast.error(error.response?.data?.message || "تعذر إضافة وسيلة الدفع");
@@ -154,13 +190,23 @@ const AdminPage = () => {
                                                                 className='w-full rounded-xl border border-ajv-mint px-3 py-2 text-ajv-moss focus:border-ajv-green focus:outline-none'
                                                         />
                                                 </div>
-                                                <input
-                                                        type='url'
-                                                        placeholder='رابط الصورة'
-                                                        value={projectForm.imageUrl}
-                                                        onChange={(e) => setProjectForm((p) => ({ ...p, imageUrl: e.target.value }))}
-                                                        className='w-full rounded-xl border border-ajv-mint px-3 py-2 text-ajv-moss focus:border-ajv-green focus:outline-none'
-                                                />
+                                                <div className='space-y-2'>
+                                                        <label className='block text-sm font-semibold text-ajv-moss'>صورة المشروع</label>
+                                                        <input
+                                                                type='file'
+                                                                accept='image/*'
+                                                                required
+                                                                onChange={handleProjectImageChange}
+                                                                className='w-full rounded-xl border border-ajv-mint px-3 py-2 text-ajv-moss focus:border-ajv-green focus:outline-none'
+                                                        />
+                                                        {projectForm.imagePreview && (
+                                                                <img
+                                                                        src={projectForm.imagePreview}
+                                                                        alt='معاينة صورة المشروع'
+                                                                        className='h-32 w-full rounded-xl border border-ajv-mint object-cover'
+                                                                />
+                                                        )}
+                                                </div>
                                                 <div className='grid gap-3 md:grid-cols-3'>
                                                         <select
                                                                 value={projectForm.status}
@@ -208,13 +254,23 @@ const AdminPage = () => {
                                                         onChange={(e) => setPaymentForm((p) => ({ ...p, accountNumber: e.target.value }))}
                                                         className='w-full rounded-xl border border-ajv-mint px-3 py-2 text-ajv-moss focus:border-ajv-green focus:outline-none'
                                                 />
-                                                <input
-                                                        type='url'
-                                                        placeholder='رابط شعار التطبيق'
-                                                        value={paymentForm.imageUrl}
-                                                        onChange={(e) => setPaymentForm((p) => ({ ...p, imageUrl: e.target.value }))}
-                                                        className='w-full rounded-xl border border-ajv-mint px-3 py-2 text-ajv-moss focus:border-ajv-green focus:outline-none'
-                                                />
+                                                <div className='space-y-2'>
+                                                        <label className='block text-sm font-semibold text-ajv-moss'>شعار التطبيق</label>
+                                                        <input
+                                                                type='file'
+                                                                accept='image/*'
+                                                                required
+                                                                onChange={handlePaymentImageChange}
+                                                                className='w-full rounded-xl border border-ajv-mint px-3 py-2 text-ajv-moss focus:border-ajv-green focus:outline-none'
+                                                        />
+                                                        {paymentForm.imagePreview && (
+                                                                <img
+                                                                        src={paymentForm.imagePreview}
+                                                                        alt='معاينة شعار التطبيق'
+                                                                        className='h-24 w-full rounded-xl border border-ajv-mint object-cover'
+                                                                />
+                                                        )}
+                                                </div>
                                                 <label className='flex items-center gap-2 text-sm text-ajv-moss'>
                                                         <input
                                                                 type='checkbox'
