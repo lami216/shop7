@@ -8,6 +8,7 @@ const HomePage = () => {
         const [projects, setProjects] = useState([]);
         const [paymentMethods, setPaymentMethods] = useState([]);
         const [stats, setStats] = useState({});
+        const [logoError, setLogoError] = useState(false);
 
         useEffect(() => {
                 const loadData = async () => {
@@ -38,20 +39,22 @@ const HomePage = () => {
                                                 <p className='text-ajv-moss/80'>
                                                         تبرع للمشاريع الخيرية الموثوقة، بخطوتين بسيطتين ودعم كامل للهوية الخضراء للجمعية.
                                                 </p>
-                                                <div className='flex flex-wrap items-center gap-3 text-sm text-ajv-moss'>
-                                                        <span className='rounded-full bg-ajv-mint px-3 py-1'>خلفية بيضاء وبطاقات نظيفة</span>
-                                                        <span className='rounded-full bg-ajv-mint px-3 py-1'>هوية AJV بلون أخضر داكن</span>
-                                                </div>
                                         </div>
                                         <div className='flex h-full w-full flex-col items-center justify-center rounded-2xl bg-ajv-mint/60 p-5 text-center text-ajv-moss shadow-inner'>
                                                 <p className='text-sm text-ajv-moss/80'>شعار مختصر</p>
                                                 <div className='mt-2 flex h-16 w-16 items-center justify-center rounded-2xl bg-white text-2xl font-bold text-ajv-green shadow'>
-                                                        AJV
+                                                        {!logoError && (
+                                                                <img
+                                                                        src='/uploads/ajv-short-logo.png'
+                                                                        alt='شعار AJV'
+                                                                        className='h-full w-full rounded-2xl object-contain'
+                                                                        onError={() => setLogoError(true)}
+                                                                />
+                                                        )}
                                                 </div>
                                                 <p className='mt-2 text-xs text-ajv-moss/70'>Association de la Jeunesse de Voullaniya</p>
                                         </div>
                                 </div>
-                                <StatsGrid stats={stats} />
                         </section>
 
                         <section className='mt-10'>
@@ -83,6 +86,8 @@ const HomePage = () => {
                                         ))}
                                 </div>
                         </section>
+
+                        <StatsGrid stats={stats} />
                 </div>
         );
 };
