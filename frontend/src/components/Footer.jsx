@@ -1,12 +1,18 @@
-import SocialLinks from "./SocialLinks";
-
 const Footer = () => {
-        const buildTime = new Date(import.meta.env.VITE_BUILD_TIME).toLocaleString();
         return (
-                <footer className='mt-16 bg-payzone-navy text-payzone-white'>
-                        <div className='container mx-auto flex flex-col items-center px-4 py-10 text-center'>
-                                <SocialLinks />
-                                <small className='mt-6 text-xs text-white/60'>آخر تحديث للموقع: {buildTime}</small>
+                <footer className='mt-16 border-t border-ajv-mint/50 bg-white/90'>
+                        <div className='mx-auto flex max-w-7xl flex-col gap-3 px-4 py-6 text-sm text-ajv-moss sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-10'>
+                                <div>
+                                        <p className='font-semibold text-ajv-green'>
+                                                Association de la Jeunesse de Voullaniya
+                                        </p>
+                                        <p className='text-ajv-moss/80'>رابطة شباب الفلّانية - منصة عطاء ومشاركة مجتمعية.</p>
+                                </div>
+                                <div className='flex flex-wrap gap-4 text-ajv-moss/80'>
+                                        <span>دعم العربية كامل</span>
+                                        <span>هوية AJV الخضراء</span>
+                                        <span>تبرع بسهولة وأمان</span>
+                                </div>
                         </div>
                 </footer>
         );

@@ -1,0 +1,157 @@
+import { useEffect, useMemo, useState } from "react";
+import { useParams } from "react-router-dom";
+import { ArrowLeft, HandHeart } from "lucide-react";
+import toast from "react-hot-toast";
+import apiClient from "../lib/apiClient";
+import DonationFlow from "../components/DonationFlow";
+
+const BreakdownItem = ({ item, total }) => {
+        const percentage = total > 0 ? Math.round((item.totalAmount / total) * 100) : 0;
+        return (
+                <div className='flex items-center justify-between rounded-xl border border-ajv-mint/60 bg-white px-4 py-3 text-right shadow-sm'>
+                        <div>
+                                <p className='text-sm font-semibold text-ajv-moss'>{item.name}</p>
+                                <p className='text-xs text-ajv-moss/70'>رقم الحساب: {item.accountNumber}</p>
+                        </div>
+                        <div className='text-left text-ajv-moss'>
+                                <p className='text-lg font-bold'>{item.totalAmount?.toLocaleString("ar-EG") || 0}</p>
+                                <p className='text-xs text-ajv-moss/70'> {percentage}% من إجمالي التبرعات</p>
+                        </div>
+                </div>
+        );
+};
+
+const ProjectDetailPage = () => {
+        const { id } = useParams();
+        const [data, setData] = useState(null);
+        const [paymentMethods, setPaymentMethods] = useState([]);
+        const [loading, setLoading] = useState(true);
+        const [openDonation, setOpenDonation] = useState(false);
+
+        const fetchProjectData = async () => {
+                try {
+                        const [projectRes, methodsRes] = await Promise.all([
+                                apiClient.get(`/projects/${id}`),
+                                apiClient.get("/payment-methods"),
+                        ]);
+                        setData(projectRes);
+                        setPaymentMethods(methodsRes);
+                } catch (error) {
+                        toast.error("تعذّر تحميل تفاصيل المشروع");
+                } finally {
+                        setLoading(false);
+                }
+        };
+
+        useEffect(() => {
+                fetchProjectData();
+        }, [id]);
+
+        const { project, stats, paymentBreakdown = [] } = data || {};
+        const totalFromPayments = useMemo(
+                () => paymentBreakdown.reduce((sum, item) => sum + (item.totalAmount || 0), 0),
+                [paymentBreakdown]
+        );
+
+        if (loading) {
+                return (
+                        <div className='flex items-center justify-center py-20'>
+                                <div className='h-10 w-10 animate-spin rounded-full border-4 border-ajv-mint border-t-ajv-green' />
+                        </div>
+                );
+        }
+
+        if (!project) {
+                return <div className='px-4 py-10 text-center text-ajv-moss'>المشروع غير موجود</div>;
+        }
+
+        return (
+                <div className='mx-auto max-w-6xl px-4 sm:px-6 lg:px-10'>
+                        <div className='overflow-hidden rounded-3xl bg-white shadow card-shadow'>
+                                <div className='relative h-72 w-full'>
+                                        {project.imageUrl ? (
+                                                <img src={project.imageUrl} alt={project.title} className='h-full w-full object-cover' />
+                                        ) : (
+                                                <div className='flex h-full w-full items-center justify-center bg-ajv-cream text-ajv-moss'>
+                                                        <HandHeart className='h-10 w-10' />
+                                                </div>
+                                        )}
+                                        <div className='absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent p-6 text-white'>
+                                                <p className='text-sm text-white/80'>{project.category}</p>
+                                                <h1 className='mt-1 text-3xl font-bold'>{project.title}</h1>
+                                        </div>
+                                </div>
+
+                                <div className='grid gap-6 p-6 lg:grid-cols-3'>
+                                        <div className='lg:col-span-2 space-y-4'>
+                                                <p className='text-ajv-moss/90 leading-relaxed'>{project.description}</p>
+
+                                                <div className='rounded-2xl border border-ajv-mint/60 bg-ajv-cream p-4'>
+                                                        <div className='flex flex-wrap items-center justify-between gap-3 text-ajv-moss'>
+                                                                <div>
+                                                                        <p className='text-xs text-ajv-moss/70'>إجمالي الهدف</p>
+                                                                        <p className='text-xl font-bold'>{stats.targetAmount?.toLocaleString("ar-EG")}</p>
+                                                                </div>
+                                                                <div>
+                                                                        <p className='text-xs text-ajv-moss/70'>ما تم جمعه</p>
+                                                                        <p className='text-xl font-bold'>{stats.currentAmount?.toLocaleString("ar-EG")}</p>
+                                                                </div>
+                                                                <div>
+                                                                        <p className='text-xs text-ajv-moss/70'>المتبقي</p>
+                                                                        <p className='text-xl font-bold'>{stats.remainingAmount?.toLocaleString("ar-EG")}</p>
+                                                                </div>
+                                                        </div>
+                                                        <div className='mt-3 h-2 w-full rounded-full bg-white'>
+                                                                <div
+                                                                        className='h-2 rounded-full bg-ajv-green'
+                                                                        style={{ width: `${Math.min(stats.progress || 0, 100)}%` }}
+                                                                />
+                                                        </div>
+                                                        <p className='mt-2 text-sm text-ajv-moss/70'>نسبة الإنجاز {stats.progress || 0}%</p>
+                                                </div>
+                                        </div>
+
+                                        <div className='space-y-3 rounded-2xl border border-ajv-mint/70 bg-white p-4 shadow-sm'>
+                                                <p className='text-lg font-bold text-ajv-moss'>تبرع الآن</p>
+                                                <p className='text-sm text-ajv-moss/80'>اختر المبلغ واضغط متابعة لاختيار تطبيق الدفع.</p>
+                                                <button
+                                                        className='flex w-full items-center justify-center gap-2 rounded-xl bg-ajv-green px-4 py-3 text-white shadow-lg hover:bg-ajv-moss'
+                                                        onClick={() => setOpenDonation(true)}
+                                                >
+                                                        بدء التبرع
+                                                        <ArrowLeft className='h-4 w-4' />
+                                                </button>
+                                        </div>
+                                </div>
+                        </div>
+
+                        <section className='mt-8 rounded-3xl border border-ajv-mint/60 bg-white p-6 shadow card-shadow'>
+                                <div className='mb-4 flex items-center justify-between'>
+                                        <h2 className='text-xl font-bold text-ajv-moss'>توزيع التبرعات حسب التطبيق</h2>
+                                        <span className='text-sm text-ajv-moss/70'>إجمالي المبالغ: {totalFromPayments.toLocaleString("ar-EG")}</span>
+                                </div>
+                                <div className='grid gap-3 md:grid-cols-2'>
+                                        {paymentBreakdown.length === 0 && <p className='text-ajv-moss/80'>لا توجد تبرعات مسجلة بعد.</p>}
+                                        {paymentBreakdown.map((item) => (
+                                                <BreakdownItem key={item.paymentMethodId} item={item} total={totalFromPayments} />
+                                        ))}
+                                </div>
+                        </section>
+
+                        <DonationFlow
+                                open={openDonation}
+                                onClose={() => setOpenDonation(false)}
+                                project={project}
+                                paymentMethods={paymentMethods}
+                                defaultAmount={stats.remainingAmount || 10000}
+                                onDonationComplete={() => {
+                                        setOpenDonation(false);
+                                        setLoading(true);
+                                        fetchProjectData();
+                                }}
+                        />
+                </div>
+        );
+};
+
+export default ProjectDetailPage;
