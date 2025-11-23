@@ -4,14 +4,10 @@ import cookieParser from "cookie-parser";
 import path from "path";
 
 import authRoutes from "./routes/auth.route.js";
-import productRoutes from "./routes/product.route.js";
-import cartRoutes from "./routes/cart.route.js";
-import couponRoutes from "./routes/coupon.route.js";
-import paymentRoutes from "./routes/payment.route.js";
-import analyticsRoutes from "./routes/analytics.route.js";
-import categoryRoutes from "./routes/category.route.js";
-import publicConfigRoutes from "./routes/publicConfig.route.js";
-import orderRoutes from "./routes/order.route.js";
+import projectRoutes from "./routes/project.route.js";
+import paymentMethodRoutes from "./routes/paymentMethod.route.js";
+import donationRoutes from "./routes/donation.route.js";
+import statsRoutes from "./routes/stats.route.js";
 
 import { connectDB } from "./lib/db.js";
 
@@ -29,14 +25,10 @@ app.use(cookieParser());
 
 /* ----------------- API Routes ----------------- */
 app.use("/api/auth", authRoutes);
-app.use("/api/products", productRoutes);
-app.use("/api/categories", categoryRoutes);
-app.use("/api/cart", cartRoutes);
-app.use("/api/coupons", couponRoutes);
-app.use("/api/payments", paymentRoutes);
-app.use("/api/analytics", analyticsRoutes);
-app.use("/api/public-config", publicConfigRoutes);
-app.use("/api/orders", orderRoutes);
+app.use("/api/projects", projectRoutes);
+app.use("/api/payment-methods", paymentMethodRoutes);
+app.use("/api/donations", donationRoutes);
+app.use("/api/statistics", statsRoutes);
 
 /* ----------------- Production static -----------------
    كان يتم بناء المسار كـ "/var/www/shop1/backend/frontend/dist"
