@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { ArrowLeft, Info } from "lucide-react";
 import DonationFlow from "./DonationFlow";
+import { formatNumber } from "../utils/numberFormat";
 
 const amountOptions = [5000, 10000, 20000, 50000];
 
@@ -20,6 +21,7 @@ const ProjectCard = ({ project, paymentMethods, onDonationComplete }) => {
         const [open, setOpen] = useState(false);
 
         const displayAmount = customAmount ? Number(customAmount) : selectedAmount;
+        const isCompleted = project.isClosed || (project.remainingAmount || 0) <= 0;
 
         const handleOpen = () => {
                 if (customAmount) {
@@ -57,11 +59,11 @@ const ProjectCard = ({ project, paymentMethods, onDonationComplete }) => {
                                         <span>المتبقي</span>
                                 </div>
                                 <div className='flex items-center justify-between text-lg font-bold text-ajv-moss'>
-                                        <span>{project.currentAmount?.toLocaleString("ar-EG") || 0}</span>
-                                        <span>{project.remainingAmount?.toLocaleString("ar-EG") || 0}</span>
+                                        <span>{formatNumber(project.currentAmount || 0)}</span>
+                                        <span>{formatNumber(project.remainingAmount || 0)}</span>
                                 </div>
                                 <ProgressBar progress={project.progress || 0} />
-                                <div className='text-left text-xs text-ajv-moss/70'>هدف المشروع {project.targetAmount?.toLocaleString("ar-EG")}</div>
+                                <div className='text-left text-xs text-ajv-moss/70'>هدف المشروع {formatNumber(project.targetAmount || 0)}</div>
                         </div>
 
                         <div className='mt-4 space-y-3'>
@@ -79,7 +81,7 @@ const ProjectCard = ({ project, paymentMethods, onDonationComplete }) => {
                                                                         : "border-ajv-mint bg-white hover:bg-ajv-cream"
                                                         }`}
                                                 >
-                                                        {amount.toLocaleString("ar-EG")} MRU
+                                                        {formatNumber(amount)} MRU
                                                 </button>
                                         ))}
                                         <input
@@ -90,12 +92,20 @@ const ProjectCard = ({ project, paymentMethods, onDonationComplete }) => {
                                                 className='w-28 rounded-full border border-ajv-mint bg-white px-3 py-2 text-sm text-ajv-moss shadow-sm focus:border-ajv-green focus:outline-none'
                                         />
                                 </div>
-                                <button
-                                        onClick={handleOpen}
-                                        className='flex w-full items-center justify-center gap-2 rounded-xl bg-ajv-green px-4 py-3 text-sm font-bold text-white shadow-lg transition hover:bg-ajv-moss'
-                                >
-                                        تبرع الآن
-                                </button>
+                                <div className='space-y-2'>
+                                        <button
+                                                onClick={handleOpen}
+                                                disabled={isCompleted}
+                                                className='flex w-full items-center justify-center gap-2 rounded-xl bg-ajv-green px-4 py-3 text-sm font-bold text-white shadow-lg transition hover:bg-ajv-moss disabled:cursor-not-allowed disabled:opacity-60'
+                                        >
+                                                {isCompleted ? "اكتمل جمع التبرعات" : "تبرع الآن"}
+                                        </button>
+                                        {isCompleted && (
+                                                <p className='text-center text-xs font-semibold text-ajv-moss'>
+                                                        تم إغلاق التبرعات لهذا المشروع بعد اكتمال الهدف أو إغلاقه.
+                                                </p>
+                                        )}
+                                </div>
                         </div>
 
                         <DonationFlow

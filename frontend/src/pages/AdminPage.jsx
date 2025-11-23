@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import apiClient from "../lib/apiClient";
+import { formatNumber } from "../utils/numberFormat";
 
 const AdminPage = () => {
         const [projects, setProjects] = useState([]);
@@ -16,6 +17,7 @@ const AdminPage = () => {
                 targetAmount: 0,
                 status: "active",
                 isActive: true,
+                isClosed: false,
         });
         const [paymentForm, setPaymentForm] = useState({
                 name: "",
@@ -75,6 +77,7 @@ const AdminPage = () => {
                         await apiClient.post("/projects", {
                                 ...projectForm,
                                 targetAmount: Number(projectForm.targetAmount),
+                                isClosed: Boolean(projectForm.isClosed),
                         });
                         toast.success("تمت إضافة المشروع بنجاح");
                         setProjectForm({
@@ -87,6 +90,7 @@ const AdminPage = () => {
                                 targetAmount: 0,
                                 status: "active",
                                 isActive: true,
+                                isClosed: false,
                         });
                         loadData();
                 } catch (error) {
@@ -139,6 +143,24 @@ const AdminPage = () => {
         const updateLocalProject = (id, key, value) => {
                 setProjects((prev) => prev.map((project) => (project._id === id ? { ...project, [key]: value } : project)));
         };
+
+        const projectDonationsMap = useMemo(() => {
+                const grouped = new Map();
+                donations.forEach((donation) => {
+                        const projectId = donation.project?._id || donation.projectId;
+                        if (!projectId) return;
+
+                        if (!grouped.has(projectId)) {
+                                grouped.set(projectId, { donations: [], total: 0 });
+                        }
+
+                        const entry = grouped.get(projectId);
+                        entry.donations.push(donation);
+                        entry.total += Number(donation.amount) || 0;
+                });
+
+                return grouped;
+        }, [donations]);
 
         return (
                 <div className='mx-auto max-w-6xl px-4 pb-16 sm:px-6 lg:px-10'>
@@ -225,6 +247,14 @@ const AdminPage = () => {
                                                                 />
                                                                 مفعل
                                                         </label>
+                                                        <label className='flex items-center gap-2 text-sm text-ajv-moss'>
+                                                                <input
+                                                                        type='checkbox'
+                                                                        checked={projectForm.isClosed}
+                                                                        onChange={(e) => setProjectForm((p) => ({ ...p, isClosed: e.target.checked }))}
+                                                                />
+                                                                إغلاق التبرعات
+                                                        </label>
                                                         <button
                                                                 type='submit'
                                                                 className='rounded-xl bg-ajv-green px-4 py-2 text-sm font-semibold text-white shadow hover:bg-ajv-moss'
@@ -298,7 +328,7 @@ const AdminPage = () => {
                                                                 <div className='flex items-center justify-between gap-3'>
                                                                         <div>
                                                                                 <p className='text-sm font-semibold text-ajv-moss'>{project.title}</p>
-                                                                                <p className='text-xs text-ajv-moss/70'>المتحصل: {project.currentAmount?.toLocaleString("ar-EG") || 0} / الهدف {project.targetAmount?.toLocaleString("ar-EG")}</p>
+                                                                                <p className='text-xs text-ajv-moss/70'>المتحصل: {formatNumber(project.currentAmount || 0)} / الهدف {formatNumber(project.targetAmount || 0)}</p>
                                                                         </div>
                                                                         <label className='flex items-center gap-2 text-sm text-ajv-moss'>
                                                                                 <input
@@ -310,6 +340,17 @@ const AdminPage = () => {
                                                                                         }}
                                                                                 />
                                                                                 مفعل
+                                                                        </label>
+                                                                        <label className='flex items-center gap-2 text-sm text-ajv-moss'>
+                                                                                <input
+                                                                                        type='checkbox'
+                                                                                        checked={project.isClosed}
+                                                                                        onChange={(e) => {
+                                                                                                updateLocalProject(project._id, "isClosed", e.target.checked);
+                                                                                                handleProjectUpdate(project._id, { isClosed: e.target.checked });
+                                                                                        }}
+                                                                                />
+                                                                                إغلاق التبرعات
                                                                         </label>
                                                                 </div>
                                                                 <div className='mt-2 grid gap-2 md:grid-cols-3'>
@@ -334,6 +375,7 @@ const AdminPage = () => {
                                                                                                 targetAmount: Number(project.targetAmount),
                                                                                                 status: project.status,
                                                                                                 isActive: project.isActive,
+                                                                                                isClosed: project.isClosed,
                                                                                         })
                                                                                 }
                                                                                 className='rounded-lg bg-ajv-green px-3 py-2 text-xs font-semibold text-white shadow hover:bg-ajv-moss'
@@ -378,6 +420,81 @@ const AdminPage = () => {
                         </section>
 
                         <section className='mt-8 rounded-2xl border border-ajv-mint/60 bg-white p-5 shadow card-shadow'>
+                                <h3 className='text-lg font-bold text-ajv-moss'>تفاصيل التبرعات لكل مشروع</h3>
+                                <div className='mt-4 space-y-4'>
+                                        {projects.map((project) => {
+                                                const projectStats = projectDonationsMap.get(project._id) || { donations: [], total: 0 };
+                                                const donorsCount = projectStats.donations.length;
+                                                const progress = project.targetAmount > 0 ? Math.min(100, Math.round((projectStats.total / project.targetAmount) * 100)) : 0;
+
+                                                return (
+                                                        <div key={project._id} className='rounded-xl border border-ajv-mint/40 bg-ajv-cream/40 p-4 shadow-sm'>
+                                                                <div className='flex flex-wrap items-center justify-between gap-3'>
+                                                                        <div>
+                                                                                <p className='text-sm font-semibold text-ajv-moss'>{project.title}</p>
+                                                                                <p className='text-xs text-ajv-moss/70'>مجموع التبرعات: {formatNumber(projectStats.total)} / الهدف {formatNumber(project.targetAmount || 0)}</p>
+                                                                        </div>
+                                                                        <div className='flex flex-wrap items-center gap-2 text-xs text-ajv-moss'>
+                                                                                <span className='rounded-full bg-white px-3 py-1 shadow-sm'>المتبرعون: {formatNumber(donorsCount)}</span>
+                                                                                <span className='rounded-full bg-white px-3 py-1 shadow-sm'>الحالة: {project.isClosed ? "مغلق" : "مفتوح"}</span>
+                                                                        </div>
+                                                                </div>
+                                                                <div className='mt-3 h-2 w-full rounded-full bg-white'>
+                                                                        <div className='h-2 rounded-full bg-ajv-green' style={{ width: `${progress}%` }} />
+                                                                </div>
+                                                                <p className='mt-1 text-xs text-ajv-moss/70'>نسبة الإنجاز {formatNumber(progress)}%</p>
+
+                                                                <div className='mt-4 overflow-x-auto rounded-xl border border-ajv-mint/40 bg-white'>
+                                                                        <table className='min-w-full text-right text-sm text-ajv-moss'>
+                                                                                <thead>
+                                                                                        <tr className='bg-ajv-cream text-xs text-ajv-moss'>
+                                                                                                <th className='px-3 py-2'>اسم المتبرع</th>
+                                                                                                <th className='px-3 py-2'>الهاتف</th>
+                                                                                                <th className='px-3 py-2'>المبلغ</th>
+                                                                                                <th className='px-3 py-2'>التطبيق</th>
+                                                                                                <th className='px-3 py-2'>الإيصال</th>
+                                                                                        </tr>
+                                                                                </thead>
+                                                                                <tbody>
+                                                                                        {projectStats.donations.length === 0 && (
+                                                                                                <tr>
+                                                                                                        <td colSpan={5} className='px-3 py-3 text-center text-ajv-moss/70'>
+                                                                                                                لا توجد تبرعات مسجلة لهذا المشروع بعد.
+                                                                                                        </td>
+                                                                                                </tr>
+                                                                                        )}
+                                                                                        {projectStats.donations.map((donation) => (
+                                                                                                <tr key={donation._id} className='border-b border-ajv-mint/30 hover:bg-ajv-mint/20'>
+                                                                                                        <td className='px-3 py-2'>{donation.payerName || donation.donorName || "مجهول"}</td>
+                                                                                                        <td className='px-3 py-2'>{donation.phone || donation.donorPhone || "-"}</td>
+                                                                                                        <td className='px-3 py-2'>{formatNumber(donation.amount || 0)}</td>
+                                                                                                        <td className='px-3 py-2'>{donation.paymentApp || donation.paymentMethod?.name || "غير محدد"}</td>
+                                                                                                        <td className='px-3 py-2'>
+                                                                                                                {donation.receiptImageUrl ? (
+                                                                                                                        <a
+                                                                                                                                href={donation.receiptImageUrl}
+                                                                                                                                target='_blank'
+                                                                                                                                rel='noopener noreferrer'
+                                                                                                                                className='rounded-lg bg-ajv-green px-3 py-1 text-xs font-semibold text-white shadow hover:bg-ajv-moss'
+                                                                                                                        >
+                                                                                                                                عرض الإيصال
+                                                                                                                        </a>
+                                                                                                                ) : (
+                                                                                                                        <span className='text-ajv-moss/60'>لا يوجد</span>
+                                                                                                                )}
+                                                                                                        </td>
+                                                                                                </tr>
+                                                                                        ))}
+                                                                                </tbody>
+                                                                        </table>
+                                                                </div>
+                                                        </div>
+                                                );
+                                        })}
+                                </div>
+                        </section>
+
+                        <section className='mt-8 rounded-2xl border border-ajv-mint/60 bg-white p-5 shadow card-shadow'>
                                 <h3 className='text-lg font-bold text-ajv-moss'>سجل التبرعات</h3>
                                 <div className='mt-4 overflow-x-auto'>
                                         <table className='min-w-full text-right text-sm text-ajv-moss'>
@@ -394,10 +511,10 @@ const AdminPage = () => {
                                                         {donations.map((donation) => (
                                                                 <tr key={donation._id} className='border-b border-ajv-mint/30 hover:bg-ajv-mint/20'>
                                                                         <td className='px-3 py-2'>{donation.project?.title}</td>
-                                                                        <td className='px-3 py-2'>{donation.amount?.toLocaleString("ar-EG")}</td>
+                                                                        <td className='px-3 py-2'>{formatNumber(donation.amount || 0)}</td>
                                                                         <td className='px-3 py-2'>{donation.paymentMethod?.name}</td>
                                                                         <td className='px-3 py-2'>{donation.donorName || donation.donorPhone || "مجهول"}</td>
-                                                                        <td className='px-3 py-2'>{new Date(donation.createdAt).toLocaleDateString("ar-EG")}</td>
+                                                                        <td className='px-3 py-2'>{new Date(donation.createdAt).toLocaleDateString("en-US")}</td>
                                                                 </tr>
                                                         ))}
                                                 </tbody>

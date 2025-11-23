@@ -1,6 +1,12 @@
 import Donation from "../models/donation.model.js";
 import PaymentMethod from "../models/paymentMethod.model.js";
 import Project from "../models/project.model.js";
+import { uploadImage } from "../lib/imagekit.js";
+
+const buildBase64FromFile = (file) => {
+        if (!file?.buffer) return null;
+        return `data:${file.mimetype};base64,${file.buffer.toString("base64")}`;
+};
 
 export const createDonation = async (req, res) => {
         try {
@@ -21,10 +27,14 @@ export const createDonation = async (req, res) => {
 
                 const donation = await Donation.create({
                         project: projectId,
+                        projectId,
                         paymentMethod: paymentMethodId,
+                        paymentApp: paymentMethod.name,
                         amount,
                         donorName,
+                        payerName: donorName,
                         donorPhone,
+                        phone: donorPhone,
                 });
 
                 res.status(201).json({
@@ -38,10 +48,59 @@ export const createDonation = async (req, res) => {
         }
 };
 
+export const createDonationWithReceipt = async (req, res) => {
+        try {
+                const { projectId, amount, paymentApp, payerName, phone, projectNumber, paymentMethodId } = req.body;
+                const { file } = req;
+
+                const project = await Project.findById(projectId);
+                if (!project) {
+                        return res.status(404).json({ message: "المشروع غير موجود" });
+                }
+
+                const paymentMethod = paymentMethodId ? await PaymentMethod.findById(paymentMethodId) : null;
+                if (paymentMethod && paymentMethod.isActive === false) {
+                        return res.status(400).json({ message: "وسيلة الدفع غير متاحة" });
+                }
+
+                let receiptImageUrl = "";
+                if (file) {
+                        const base64 = buildBase64FromFile(file);
+                        if (base64) {
+                                const uploadResult = await uploadImage(base64, "donation-receipts");
+                                receiptImageUrl = uploadResult.url;
+                        }
+                }
+
+                const donation = await Donation.create({
+                        project: projectId,
+                        projectId,
+                        paymentMethod: paymentMethod?._id,
+                        paymentApp: paymentApp || paymentMethod?.name || "غير محدد",
+                        amount: Number(amount),
+                        payerName,
+                        donorName: payerName,
+                        phone,
+                        donorPhone: phone,
+                        receiptImageUrl,
+                        status: "pending",
+                        projectNumber,
+                });
+
+                return res.status(201).json({
+                        donation,
+                        message: "تم تسجيل التبرع بنجاح",
+                });
+        } catch (error) {
+                console.log("Error creating donation with receipt", error.message);
+                res.status(500).json({ message: "تعذّر تسجيل التبرع", error: error.message });
+        }
+};
+
 export const getDonations = async (_req, res) => {
         try {
                 const donations = await Donation.find()
-                        .populate("project", "title category")
+                        .populate("project", "title category targetAmount")
                         .populate("paymentMethod", "name accountNumber")
                         .sort({ createdAt: -1 })
                         .lean();

@@ -4,6 +4,7 @@ import { ArrowLeft, HandHeart } from "lucide-react";
 import toast from "react-hot-toast";
 import apiClient from "../lib/apiClient";
 import DonationFlow from "../components/DonationFlow";
+import { formatNumber } from "../utils/numberFormat";
 
 const BreakdownItem = ({ item, total }) => {
         const percentage = total > 0 ? Math.round((item.totalAmount / total) * 100) : 0;
@@ -14,8 +15,8 @@ const BreakdownItem = ({ item, total }) => {
                                 <p className='text-xs text-ajv-moss/70'>رقم الحساب: {item.accountNumber}</p>
                         </div>
                         <div className='text-left text-ajv-moss'>
-                                <p className='text-lg font-bold'>{item.totalAmount?.toLocaleString("ar-EG") || 0}</p>
-                                <p className='text-xs text-ajv-moss/70'> {percentage}% من إجمالي التبرعات</p>
+                                <p className='text-lg font-bold'>{formatNumber(item.totalAmount || 0)}</p>
+                                <p className='text-xs text-ajv-moss/70'> {formatNumber(percentage)}% من إجمالي التبرعات</p>
                         </div>
                 </div>
         );
@@ -52,6 +53,8 @@ const ProjectDetailPage = () => {
                 () => paymentBreakdown.reduce((sum, item) => sum + (item.totalAmount || 0), 0),
                 [paymentBreakdown]
         );
+
+        const isCompleted = project?.isClosed || (stats?.remainingAmount || 0) <= 0;
 
         if (loading) {
                 return (
@@ -90,15 +93,15 @@ const ProjectDetailPage = () => {
                                                         <div className='flex flex-wrap items-center justify-between gap-3 text-ajv-moss'>
                                                                 <div>
                                                                         <p className='text-xs text-ajv-moss/70'>إجمالي الهدف</p>
-                                                                        <p className='text-xl font-bold'>{stats.targetAmount?.toLocaleString("ar-EG")}</p>
+                                                                        <p className='text-xl font-bold'>{formatNumber(stats.targetAmount || 0)}</p>
                                                                 </div>
                                                                 <div>
                                                                         <p className='text-xs text-ajv-moss/70'>ما تم جمعه</p>
-                                                                        <p className='text-xl font-bold'>{stats.currentAmount?.toLocaleString("ar-EG")}</p>
+                                                                        <p className='text-xl font-bold'>{formatNumber(stats.currentAmount || 0)}</p>
                                                                 </div>
                                                                 <div>
                                                                         <p className='text-xs text-ajv-moss/70'>المتبقي</p>
-                                                                        <p className='text-xl font-bold'>{stats.remainingAmount?.toLocaleString("ar-EG")}</p>
+                                                                        <p className='text-xl font-bold'>{formatNumber(stats.remainingAmount || 0)}</p>
                                                                 </div>
                                                         </div>
                                                         <div className='mt-3 h-2 w-full rounded-full bg-white'>
@@ -107,7 +110,7 @@ const ProjectDetailPage = () => {
                                                                         style={{ width: `${Math.min(stats.progress || 0, 100)}%` }}
                                                                 />
                                                         </div>
-                                                        <p className='mt-2 text-sm text-ajv-moss/70'>نسبة الإنجاز {stats.progress || 0}%</p>
+                                                        <p className='mt-2 text-sm text-ajv-moss/70'>نسبة الإنجاز {formatNumber(stats.progress || 0)}%</p>
                                                 </div>
                                         </div>
 
@@ -115,12 +118,18 @@ const ProjectDetailPage = () => {
                                                 <p className='text-lg font-bold text-ajv-moss'>تبرع الآن</p>
                                                 <p className='text-sm text-ajv-moss/80'>اختر المبلغ واضغط متابعة لاختيار تطبيق الدفع.</p>
                                                 <button
-                                                        className='flex w-full items-center justify-center gap-2 rounded-xl bg-ajv-green px-4 py-3 text-white shadow-lg hover:bg-ajv-moss'
+                                                        className='flex w-full items-center justify-center gap-2 rounded-xl bg-ajv-green px-4 py-3 text-white shadow-lg hover:bg-ajv-moss disabled:cursor-not-allowed disabled:opacity-60'
                                                         onClick={() => setOpenDonation(true)}
+                                                        disabled={isCompleted}
                                                 >
-                                                        بدء التبرع
+                                                        {isCompleted ? "اكتمل جمع التبرعات" : "بدء التبرع"}
                                                         <ArrowLeft className='h-4 w-4' />
                                                 </button>
+                                                {isCompleted && (
+                                                        <p className='text-center text-xs font-semibold text-ajv-moss'>
+                                                                تم اكتمال جمع التبرعات لهذا المشروع، يمكن إعادة فتحه من لوحة التحكم.
+                                                        </p>
+                                                )}
                                         </div>
                                 </div>
                         </div>
@@ -128,7 +137,7 @@ const ProjectDetailPage = () => {
                         <section className='mt-8 rounded-3xl border border-ajv-mint/60 bg-white p-6 shadow card-shadow'>
                                 <div className='mb-4 flex items-center justify-between'>
                                         <h2 className='text-xl font-bold text-ajv-moss'>توزيع التبرعات حسب التطبيق</h2>
-                                        <span className='text-sm text-ajv-moss/70'>إجمالي المبالغ: {totalFromPayments.toLocaleString("ar-EG")}</span>
+                                        <span className='text-sm text-ajv-moss/70'>إجمالي المبالغ: {formatNumber(totalFromPayments)}</span>
                                 </div>
                                 <div className='grid gap-3 md:grid-cols-2'>
                                         {paymentBreakdown.length === 0 && <p className='text-ajv-moss/80'>لا توجد تبرعات مسجلة بعد.</p>}
