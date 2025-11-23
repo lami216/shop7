@@ -1,4 +1,4 @@
-import { Menu, Search, ShoppingBag, UserRound } from "lucide-react";
+import { Menu, UserRound } from "lucide-react";
 import { Link, NavLink } from "react-router-dom";
 import { useState } from "react";
 import { useUserStore } from "../stores/useUserStore";
@@ -54,12 +54,6 @@ const Navbar = () => {
                                 </nav>
 
                                 <div className='flex items-center gap-2 text-ajv-moss'>
-                                        <button className='flex h-10 w-10 items-center justify-center rounded-full border border-ajv-mint bg-white shadow-sm'>
-                                                <Search className='h-5 w-5' />
-                                        </button>
-                                        <button className='flex h-10 w-10 items-center justify-center rounded-full border border-ajv-mint bg-white shadow-sm'>
-                                                <ShoppingBag className='h-5 w-5' />
-                                        </button>
                                         <Link
                                                 to={user ? "/admin" : "/login"}
                                                 className='flex h-10 w-10 items-center justify-center rounded-full border border-ajv-mint bg-white shadow-sm'
