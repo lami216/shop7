@@ -42,7 +42,17 @@ const enrichProject = (project, totalsMap) => {
 
 export const createProject = async (req, res) => {
         try {
-                const { title, shortDescription, description, category, image, targetAmount, status, isActive } = req.body;
+                const {
+                        title,
+                        shortDescription,
+                        description,
+                        category,
+                        image,
+                        targetAmount,
+                        status,
+                        isActive,
+                        isClosed = false,
+                } = req.body;
 
                 const uploadResult = await uploadProjectImage(image);
 
@@ -56,6 +66,7 @@ export const createProject = async (req, res) => {
                         targetAmount,
                         status,
                         isActive,
+                        isClosed,
                 });
 
                 res.status(201).json(project);

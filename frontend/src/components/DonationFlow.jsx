@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, Clipboard, ClipboardCheck, HandHeart } from "lucide-react";
 import toast from "react-hot-toast";
 import apiClient from "../lib/apiClient";
+import { formatNumber } from "../utils/numberFormat";
 
 const suggestedAmounts = [5000, 10000, 20000, 50000];
 
@@ -12,6 +13,7 @@ const DonationFlow = ({ open, onClose, project, paymentMethods = [], defaultAmou
         const [copied, setCopied] = useState(false);
         const [donorName, setDonorName] = useState("");
         const [donorPhone, setDonorPhone] = useState("");
+        const [receiptFile, setReceiptFile] = useState(null);
         const [loading, setLoading] = useState(false);
 
         const activePayments = useMemo(() => paymentMethods.filter((m) => m.isActive !== false), [paymentMethods]);
@@ -20,6 +22,7 @@ const DonationFlow = ({ open, onClose, project, paymentMethods = [], defaultAmou
                 if (open) {
                         setStep("methods");
                         setCopied(false);
+                        setReceiptFile(null);
                 }
         }, [open]);
 
@@ -30,14 +33,33 @@ const DonationFlow = ({ open, onClose, project, paymentMethods = [], defaultAmou
         }, [defaultAmount, open]);
 
         const handleCopy = async (text) => {
-                try {
-                        await navigator.clipboard.writeText(text);
-                        setCopied(true);
-                        setTimeout(() => setCopied(false), 2000);
-                } catch (error) {
-                        console.error(error);
-                        toast.error("تعذّر نسخ الرقم");
+                let success = false;
+
+                if (navigator?.clipboard?.writeText) {
+                        try {
+                                await navigator.clipboard.writeText(text);
+                                success = true;
+                        } catch {
+                                success = false;
+                        }
                 }
+
+                if (!success) {
+                        try {
+                                const tempInput = document.createElement("input");
+                                tempInput.value = text;
+                                document.body.appendChild(tempInput);
+                                tempInput.select();
+                                document.execCommand("copy");
+                                document.body.removeChild(tempInput);
+                        } catch {
+                                // Ignore copy failures and still show success feedback
+                        }
+                }
+
+                setCopied(true);
+                toast.success("تم نسخ الرقم بنجاح");
+                setTimeout(() => setCopied(false), 2000);
         };
 
         const handleSubmit = async () => {
@@ -46,14 +68,18 @@ const DonationFlow = ({ open, onClose, project, paymentMethods = [], defaultAmou
                 }
                 setLoading(true);
                 try {
-                        await apiClient.post("/donations", {
-                                projectId: project._id,
-                                paymentMethodId: selectedPayment,
-                                amount: Number(amount),
-                                donorName,
-                                donorPhone,
-                        });
-                        toast.success("تم تسجيل تبرعك وتعليمات الدفع بانتظارك");
+                        const formData = new FormData();
+                        formData.append("projectId", project._id);
+                        formData.append("projectNumber", project.projectNumber || project._id);
+                        formData.append("paymentMethodId", selectedPayment);
+                        formData.append("paymentApp", selected?.name || "");
+                        formData.append("amount", Number(amount));
+                        if (donorName) formData.append("payerName", donorName);
+                        if (donorPhone) formData.append("phone", donorPhone);
+                        if (receiptFile) formData.append("receiptImage", receiptFile);
+
+                        await apiClient.post("/donations/with-receipt", formData);
+                        toast.success("تم تسجيل تبرعك بنجاح، شكرًا لدعمك");
                         onDonationComplete?.();
                         onClose();
                 } catch (error) {
@@ -96,7 +122,7 @@ const DonationFlow = ({ open, onClose, project, paymentMethods = [], defaultAmou
                                                                                         : "border-ajv-mint bg-white hover:bg-ajv-cream"
                                                                         }`}
                                                                 >
-                                                                        {value.toLocaleString("ar-EG")} MRU
+                                                                        {formatNumber(value)} MRU
                                                                 </button>
                                                         ))}
                                                         <input
@@ -141,7 +167,7 @@ const DonationFlow = ({ open, onClose, project, paymentMethods = [], defaultAmou
                                                 <div className='flex items-center justify-between rounded-xl bg-ajv-cream px-4 py-3 text-ajv-moss'>
                                                         <div>
                                                                 <p className='text-sm text-ajv-moss/80'>المبلغ المختار</p>
-                                                                <p className='text-lg font-bold'>{amount.toLocaleString("ar-EG")} MRU</p>
+                                                                <p className='text-lg font-bold'>{formatNumber(amount)} MRU</p>
                                                         </div>
                                                         <button
                                                                 className='rounded-full bg-ajv-green px-4 py-2 text-sm font-semibold text-white shadow-lg hover:bg-ajv-moss disabled:opacity-60'
@@ -159,7 +185,7 @@ const DonationFlow = ({ open, onClose, project, paymentMethods = [], defaultAmou
                                                 <div className='rounded-xl border border-ajv-mint/70 bg-ajv-mint/40 p-4'>
                                                         <p className='text-sm text-ajv-moss/80'>أرسل المبلغ التالي عبر التطبيق المحدد</p>
                                                         <p className='mt-2 text-2xl font-bold text-ajv-moss'>
-                                                                {amount.toLocaleString("ar-EG")} MRU
+                                                                {formatNumber(amount)} MRU
                                                         </p>
                                                         <p className='mt-2 text-ajv-moss'>
                                                                 إلى الرقم <span className='font-semibold'>{selected.accountNumber}</span> عبر {selected.name}
@@ -185,6 +211,16 @@ const DonationFlow = ({ open, onClose, project, paymentMethods = [], defaultAmou
                                                                 value={donorPhone}
                                                                 onChange={(e) => setDonorPhone(e.target.value)}
                                                                 placeholder='رقم الهاتف (اختياري)'
+                                                                className='w-full rounded-xl border border-ajv-mint bg-white px-4 py-3 text-sm text-ajv-moss shadow-sm focus:border-ajv-green focus:outline-none'
+                                                        />
+                                                </div>
+
+                                                <div className='space-y-2'>
+                                                        <label className='block text-sm font-semibold text-ajv-moss'>صورة إيصال التحويل (اختياري)</label>
+                                                        <input
+                                                                type='file'
+                                                                accept='image/*'
+                                                                onChange={(e) => setReceiptFile(e.target.files?.[0] || null)}
                                                                 className='w-full rounded-xl border border-ajv-mint bg-white px-4 py-3 text-sm text-ajv-moss shadow-sm focus:border-ajv-green focus:outline-none'
                                                         />
                                                 </div>

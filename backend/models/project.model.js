@@ -10,6 +10,7 @@ const projectSchema = new mongoose.Schema(
         imageFileId: { type: String, default: null },
         targetAmount: { type: Number, required: true, min: 0 },
         isActive: { type: Boolean, default: true },
+        isClosed: { type: Boolean, default: false },
         status: {
                         type: String,
                         enum: ["active", "hidden", "draft"],
