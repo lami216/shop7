@@ -406,12 +406,12 @@
                         "orderCreationFailed": "تعذر إنشاء الطلب. يرجى المحاولة مرة أخرى."
                 }
         },
-        "auth": {
-                "login": {
-                        "title": "مرحباً بعودتك إلى بايزون",
-                        "email": "البريد الإلكتروني",
-                        "password": "كلمة المرور",
-                        "placeholderEmail": "you@example.com",
+"auth": {
+"login": {
+"title": "مرحباً بعودتك إلى منصة AJV",
+"email": "البريد الإلكتروني",
+"password": "كلمة المرور",
+"placeholderEmail": "you@example.com",
                         "placeholderPassword": "••••••••",
                         "button": "تسجيل الدخول",
                         "loading": "جاري التحميل...",
