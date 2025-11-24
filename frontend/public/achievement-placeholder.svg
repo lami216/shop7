@@ -1,0 +1,8 @@
+<svg width="400" height="260" viewBox="0 0 400 260" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="400" height="260" rx="18" fill="#F5FBF7"/>
+  <rect x="24" y="24" width="352" height="212" rx="14" fill="#E3F4EC" stroke="#9AC9AF" stroke-width="2" stroke-dasharray="6 6"/>
+  <path d="M112 172C112 145.49 133.49 124 160 124H240C266.51 124 288 145.49 288 172V172H112V172Z" fill="#CBE5D6"/>
+  <circle cx="200" cy="104" r="38" fill="#B2D7C0"/>
+  <path d="M186 106.5L196.5 117L215 97" stroke="#F5FBF7" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="200" y="205" text-anchor="middle" fill="#6B9275" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="600">إنجاز قادم</text>
+</svg>
