@@ -8,6 +8,7 @@ import projectRoutes from "./routes/project.route.js";
 import paymentMethodRoutes from "./routes/paymentMethod.route.js";
 import donationRoutes from "./routes/donation.route.js";
 import statsRoutes from "./routes/stats.route.js";
+import achievementRoutes from "./routes/achievement.route.js";
 
 import { connectDB } from "./lib/db.js";
 
@@ -29,6 +30,7 @@ app.use("/api/projects", projectRoutes);
 app.use("/api/payment-methods", paymentMethodRoutes);
 app.use("/api/donations", donationRoutes);
 app.use("/api/statistics", statsRoutes);
+app.use("/api/achievements", achievementRoutes);
 
 /* ----------------- Production static -----------------
    كان يتم بناء المسار كـ "/var/www/shop1/backend/frontend/dist"

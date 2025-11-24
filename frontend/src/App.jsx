@@ -3,6 +3,8 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
 
 import AdminPage from "./pages/AdminPage";
+import AchievementDetailPage from "./pages/AchievementDetailPage";
+import AchievementsPage from "./pages/AchievementsPage";
 import HomePage from "./pages/HomePage";
 import LoginPage from "./pages/LoginPage";
 import ProjectDetailPage from "./pages/ProjectDetailPage";
@@ -33,6 +35,8 @@ function App() {
                         <main className='pt-24'>
                                 <Routes>
                                         <Route path='/' element={<HomePage />} />
+                                        <Route path='/achievements' element={<AchievementsPage />} />
+                                        <Route path='/achievements/:id' element={<AchievementDetailPage />} />
                                         <Route path='/trust' element={<TrustPage />} />
                                         <Route path='/projects/:id' element={<ProjectDetailPage />} />
                                         <Route path='/login' element={!user ? <LoginPage /> : <Navigate to='/' />} />

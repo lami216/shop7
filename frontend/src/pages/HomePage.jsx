@@ -1,11 +1,14 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import toast from "react-hot-toast";
 import apiClient from "../lib/apiClient";
+import AchievementCard from "../components/AchievementCard";
 import ProjectCard from "../components/ProjectCard";
 import StatsGrid from "../components/StatsGrid";
 
 const HomePage = () => {
         const [projects, setProjects] = useState([]);
+        const [achievements, setAchievements] = useState([]);
         const [paymentMethods, setPaymentMethods] = useState([]);
         const [stats, setStats] = useState({});
         const [logoError, setLogoError] = useState(false);
@@ -13,14 +16,16 @@ const HomePage = () => {
         useEffect(() => {
                 const loadData = async () => {
                         try {
-                                const [projectsRes, paymentsRes, statsRes] = await Promise.all([
+                                const [projectsRes, paymentsRes, statsRes, achievementsRes] = await Promise.all([
                                         apiClient.get("/projects"),
                                         apiClient.get("/payment-methods"),
                                         apiClient.get("/statistics"),
+                                        apiClient.get("/achievements?showOnHome=true"),
                                 ]);
                                 setProjects(projectsRes);
                                 setPaymentMethods(paymentsRes);
                                 setStats(statsRes);
+                                setAchievements(achievementsRes || []);
                         } catch (error) {
                                 toast.error("تعذّر تحميل بيانات المنصة");
                         }
@@ -85,6 +90,32 @@ const HomePage = () => {
                                                 />
                                         ))}
                                 </div>
+                        </section>
+
+                        <section className='mt-10'>
+                                <div className='mb-4 flex items-center justify-between'>
+                                        <div>
+                                                <p className='text-sm text-ajv-moss/70'>قصص ميدانية من فريق الشباب</p>
+                                                <h2 className='text-2xl font-bold text-ajv-moss'>إنجازات AJV</h2>
+                                        </div>
+                                        <Link
+                                                to='/achievements'
+                                                className='rounded-full bg-ajv-green px-4 py-2 text-sm font-semibold text-white shadow hover:bg-ajv-moss'
+                                        >
+                                                عرض كل الإنجازات
+                                        </Link>
+                                </div>
+                                {achievements.length === 0 ? (
+                                        <div className='rounded-2xl border border-ajv-mint/60 bg-white p-6 text-center text-ajv-moss/80 shadow-sm'>
+                                                لا توجد إنجازات مفعلة للعرض حالياً.
+                                        </div>
+                                ) : (
+                                        <div className='grid gap-4 md:grid-cols-2 lg:grid-cols-3'>
+                                                {achievements.slice(0, 4).map((achievement) => (
+                                                        <AchievementCard key={achievement._id} achievement={achievement} showBadge />
+                                                ))}
+                                        </div>
+                                )}
                         </section>
 
                         <StatsGrid stats={stats} />

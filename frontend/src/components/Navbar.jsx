@@ -8,6 +8,7 @@ const Navbar = () => {
         const { user } = useUserStore();
         const navLinks = [
                 { to: "/", label: "الرئيسية" },
+                { to: "/achievements", label: "الإنجازات" },
                 { to: "/trust", label: "التراخيص والمصداقية" },
                 ...(user?.role === "admin" ? [{ to: "/admin", label: "لوحة التحكم" }] : []),
         ];
