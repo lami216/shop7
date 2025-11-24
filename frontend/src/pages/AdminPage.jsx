@@ -8,6 +8,7 @@ const AdminPage = () => {
         const [paymentMethods, setPaymentMethods] = useState([]);
         const [donations, setDonations] = useState([]);
         const [achievements, setAchievements] = useState([]);
+        const MAX_PROJECT_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB
         const [activeTab, setActiveTab] = useState("projects");
         const [projectForm, setProjectForm] = useState({
                 title: "",
@@ -82,6 +83,11 @@ const AdminPage = () => {
         const handleProjectImageChange = async (event) => {
                 const file = event.target.files?.[0];
                 if (!file) return;
+
+                if (file.size > MAX_PROJECT_IMAGE_SIZE) {
+                        toast.error("حجم الصورة يتجاوز 10 ميجابايت، يرجى اختيار صورة أصغر");
+                        return;
+                }
 
                 const base64 = await readFileAsDataURL(file);
                 setProjectForm((previous) => ({ ...previous, image: base64, imagePreview: base64 }));
