@@ -8,9 +8,18 @@ const createHttpError = (status, message) => {
         return error;
 };
 
+const MAX_PROJECT_IMAGE_SIZE_BYTES = 10 * 1024 * 1024; // 10MB
+
 const uploadProjectImage = async (image) => {
         if (!image || typeof image !== "string" || !image.startsWith("data:")) {
                 throw createHttpError(400, "صيغة صورة المشروع غير صالحة");
+        }
+
+        const base64Payload = image.split(",")[1] || "";
+        const estimatedBytes = Math.ceil((base64Payload.length * 3) / 4);
+
+        if (estimatedBytes > MAX_PROJECT_IMAGE_SIZE_BYTES) {
+                throw createHttpError(400, "حجم صورة المشروع يتجاوز الحد المسموح (10 ميجابايت)");
         }
 
         return uploadImage(image, "projects");
