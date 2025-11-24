@@ -7,6 +7,7 @@ import HomePage from "./pages/HomePage";
 import LoginPage from "./pages/LoginPage";
 import ProjectDetailPage from "./pages/ProjectDetailPage";
 import SignUpPage from "./pages/SignUpPage";
+import TrustPage from "./pages/TrustPage";
 
 import Footer from "./components/Footer";
 import Navbar from "./components/Navbar";
@@ -32,6 +33,7 @@ function App() {
                         <main className='pt-24'>
                                 <Routes>
                                         <Route path='/' element={<HomePage />} />
+                                        <Route path='/trust' element={<TrustPage />} />
                                         <Route path='/projects/:id' element={<ProjectDetailPage />} />
                                         <Route path='/login' element={!user ? <LoginPage /> : <Navigate to='/' />} />
                                         <Route path='/signup' element={!user ? <SignUpPage /> : <Navigate to='/' />} />

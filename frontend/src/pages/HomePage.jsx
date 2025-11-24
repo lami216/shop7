@@ -40,19 +40,19 @@ const HomePage = () => {
                                                         تبرع للمشاريع الخيرية الموثوقة، بخطوتين بسيطتين ودعم كامل للهوية الخضراء للجمعية.
                                                 </p>
                                         </div>
-                                        <div className='flex h-full w-full flex-col items-center justify-center rounded-2xl bg-ajv-mint/60 p-5 text-center text-ajv-moss shadow-inner'>
-                                                <p className='text-sm text-ajv-moss/80'>شعار مختصر</p>
-                                                <div className='mt-2 flex h-16 w-16 items-center justify-center rounded-2xl bg-white text-2xl font-bold text-ajv-green shadow'>
-                                                        {!logoError && (
-                                                                <img
-                                                                        src='/uploads/ajv-short-logo.png'
-                                                                        alt='شعار AJV'
-                                                                        className='h-full w-full rounded-2xl object-contain'
-                                                                        onError={() => setLogoError(true)}
-                                                                />
-                                                        )}
+                                        <div className='flex h-full w-full items-center justify-center rounded-2xl bg-ajv-mint/60 p-5 text-center text-ajv-moss shadow-inner'>
+                                                <div className='flex items-center justify-center rounded-3xl border border-ajv-mint/70 bg-white p-6 shadow-lg'>
+                                                        <div className='flex h-48 w-48 items-center justify-center rounded-2xl bg-ajv-cream/70 p-6 shadow-inner ring-1 ring-ajv-mint/60'>
+                                                                {!logoError && (
+                                                                        <img
+                                                                                src='/ajv-short-logo.png'
+                                                                                alt='شعار AJV'
+                                                                                className='h-full w-full object-contain'
+                                                                                onError={() => setLogoError(true)}
+                                                                        />
+                                                                )}
+                                                        </div>
                                                 </div>
-                                                <p className='mt-2 text-xs text-ajv-moss/70'>Association de la Jeunesse de Voullaniya</p>
                                         </div>
                                 </div>
                         </section>

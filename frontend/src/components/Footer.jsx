@@ -1,3 +1,5 @@
+import { Link } from "react-router-dom";
+
 const Footer = () => {
         return (
                 <footer className='mt-16 border-t border-ajv-mint/50 bg-white/90'>
@@ -12,6 +14,9 @@ const Footer = () => {
                                         <span>دعم العربية كامل</span>
                                         <span>هوية AJV الخضراء</span>
                                         <span>تبرع بسهولة وأمان</span>
+                                        <Link to='/trust' className='font-semibold text-ajv-green hover:text-ajv-moss'>
+                                                التراخيص والمصداقية
+                                        </Link>
                                 </div>
                         </div>
                 </footer>
