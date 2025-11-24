@@ -7,23 +7,27 @@ const normalizeVideos = (videos = []) =>
                 .map((video) => video.trim())
                 .filter(Boolean);
 
-const processImages = async (images = []) => {
-        const uploads = await Promise.all(
+const uploadAchievementImages = async (images = []) => {
+        const finalImages = [];
+
+        await Promise.all(
                 (images || []).map(async (image) => {
-                        if (typeof image !== "string") return null;
+                        if (typeof image !== "string") return;
+
                         const trimmed = image.trim();
-                        if (!trimmed) return null;
+                        if (!trimmed) return;
 
                         if (trimmed.startsWith("data:")) {
                                 const uploadResult = await uploadImage(trimmed, "achievements");
-                                return uploadResult.url;
+                                finalImages.push(uploadResult.url);
+                                return;
                         }
 
-                        return trimmed;
+                        finalImages.push(trimmed);
                 })
         );
 
-        return uploads.filter(Boolean);
+        return finalImages;
 };
 
 export const createAchievement = async (req, res) => {
@@ -39,7 +43,7 @@ export const createAchievement = async (req, res) => {
                         showOnHome = false,
                 } = req.body;
 
-                const processedImages = await processImages(images);
+                const processedImages = await uploadAchievementImages(images);
                 const trimmedVideos = normalizeVideos(videos);
                 const parsedDate = date ? new Date(date) : undefined;
 
@@ -74,8 +78,8 @@ export const updateAchievement = async (req, res) => {
 
                 const updates = { ...req.body };
 
-                if (updates.images) {
-                        updates.images = await processImages(updates.images);
+                if (updates.images !== undefined) {
+                        updates.images = await uploadAchievementImages(updates.images);
                 }
 
                 if (updates.videos) {
