@@ -68,12 +68,14 @@ const ProjectDetailPage = () => {
                 return <div className='px-4 py-10 text-center text-ajv-moss'>المشروع غير موجود</div>;
         }
 
+        const projectImage = project?.images?.[0]?.url || project?.images?.[0] || project?.imageUrl;
+
         return (
                 <div className='mx-auto max-w-6xl px-4 sm:px-6 lg:px-10'>
                         <div className='overflow-hidden rounded-3xl bg-white shadow card-shadow'>
                                 <div className='relative h-72 w-full'>
-                                        {project.imageUrl ? (
-                                                <img src={project.imageUrl} alt={project.title} className='h-full w-full object-cover' />
+                                        {projectImage ? (
+                                                <img src={projectImage} alt={project.title} className='h-full w-full object-cover' />
                                         ) : (
                                                 <div className='flex h-full w-full items-center justify-center bg-ajv-cream text-ajv-moss'>
                                                         <HandHeart className='h-10 w-10' />
