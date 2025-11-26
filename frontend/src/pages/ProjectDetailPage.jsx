@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
-import { ArrowLeft, HandHeart } from "lucide-react";
+import { ArrowLeft, ArrowRight, HandHeart } from "lucide-react";
 import toast from "react-hot-toast";
 import apiClient from "../lib/apiClient";
 import DonationFlow from "../components/DonationFlow";
@@ -28,6 +28,8 @@ const ProjectDetailPage = () => {
         const [paymentMethods, setPaymentMethods] = useState([]);
         const [loading, setLoading] = useState(true);
         const [openDonation, setOpenDonation] = useState(false);
+        const [currentImageIndex, setCurrentImageIndex] = useState(0);
+        const [touchStartX, setTouchStartX] = useState(null);
 
         const fetchProjectData = async () => {
                 try {
@@ -68,18 +70,86 @@ const ProjectDetailPage = () => {
                 return <div className='px-4 py-10 text-center text-ajv-moss'>المشروع غير موجود</div>;
         }
 
-        const projectImage = project?.images?.[0]?.url || project?.images?.[0] || project?.imageUrl;
+        const projectImages = useMemo(() => {
+                if (!project) return [];
+
+                const normalizedImages = (project.images || [])
+                        .map((image) => (typeof image === "string" ? image : image?.url))
+                        .filter(Boolean);
+
+                if (normalizedImages.length > 0) return normalizedImages;
+
+                return project.imageUrl ? [project.imageUrl] : [];
+        }, [project]);
+
+        useEffect(() => {
+                setCurrentImageIndex(0);
+        }, [project?.id]);
+
+        const hasMultipleImages = projectImages.length > 1;
+
+        const showNextImage = () => {
+                setCurrentImageIndex((prev) => (prev + 1) % projectImages.length);
+        };
+
+        const showPreviousImage = () => {
+                setCurrentImageIndex((prev) => (prev - 1 + projectImages.length) % projectImages.length);
+        };
+
+        const handleTouchStart = (e) => {
+                setTouchStartX(e.touches[0].clientX);
+        };
+
+        const handleTouchEnd = (e) => {
+                if (touchStartX === null || !hasMultipleImages) return;
+                const touchEndX = e.changedTouches[0].clientX;
+                const deltaX = touchEndX - touchStartX;
+
+                if (deltaX > 40) {
+                        showPreviousImage();
+                } else if (deltaX < -40) {
+                        showNextImage();
+                }
+
+                setTouchStartX(null);
+        };
 
         return (
                 <div className='mx-auto max-w-6xl px-4 sm:px-6 lg:px-10'>
                         <div className='overflow-hidden rounded-3xl bg-white shadow card-shadow'>
-                                <div className='relative h-72 w-full'>
-                                        {projectImage ? (
-                                                <img src={projectImage} alt={project.title} className='h-full w-full object-cover' />
+                                <div
+                                        className='relative h-72 w-full'
+                                        onTouchStart={handleTouchStart}
+                                        onTouchEnd={handleTouchEnd}
+                                >
+                                        {projectImages.length > 0 ? (
+                                                <img
+                                                        src={projectImages[currentImageIndex]}
+                                                        alt={project.title}
+                                                        className='h-full w-full object-cover'
+                                                />
                                         ) : (
                                                 <div className='flex h-full w-full items-center justify-center bg-ajv-cream text-ajv-moss'>
                                                         <HandHeart className='h-10 w-10' />
                                                 </div>
+                                        )}
+                                        {hasMultipleImages && (
+                                                <>
+                                                        <button
+                                                                type='button'
+                                                                className='absolute right-4 top-1/2 flex -translate-y-1/2 items-center justify-center rounded-full bg-white/90 p-2 text-ajv-moss shadow hover:bg-white'
+                                                                onClick={showNextImage}
+                                                        >
+                                                                <ArrowLeft className='h-5 w-5' />
+                                                        </button>
+                                                        <button
+                                                                type='button'
+                                                                className='absolute left-4 top-1/2 flex -translate-y-1/2 items-center justify-center rounded-full bg-white/90 p-2 text-ajv-moss shadow hover:bg-white'
+                                                                onClick={showPreviousImage}
+                                                        >
+                                                                <ArrowRight className='h-5 w-5' />
+                                                        </button>
+                                                </>
                                         )}
                                         <div className='absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent p-6 text-white'>
                                                 <p className='text-sm text-white/80'>{project.category}</p>
