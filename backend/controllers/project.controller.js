@@ -8,21 +8,49 @@ const createHttpError = (status, message) => {
         return error;
 };
 
-const MAX_PROJECT_IMAGE_SIZE_BYTES = 10 * 1024 * 1024; // 10MB
+const MAX_IMAGE_SIZE_BYTES = 2 * 1024 * 1024; // 2MB
+const PROJECT_MIN_IMAGES = 3;
+const PROJECT_MAX_IMAGES = 5;
 
-const uploadProjectImage = async (image) => {
-        if (!image || typeof image !== "string" || !image.startsWith("data:")) {
-                throw createHttpError(400, "صيغة صورة المشروع غير صالحة");
+const calculateBase64Size = (base64String = "") => {
+        const payload = base64String.split(",")[1] || "";
+        return Math.ceil((payload.length * 3) / 4);
+};
+
+const assertImageSizeWithinLimit = (image, label) => {
+        if (!image?.startsWith("data:")) return;
+        const estimatedBytes = calculateBase64Size(image);
+        if (estimatedBytes > MAX_IMAGE_SIZE_BYTES) {
+                throw createHttpError(400, `${label} يتجاوز الحد الأقصى المسموح (2 ميغابايت لكل صورة)`);
+        }
+};
+
+const uploadProjectImages = async (images = []) => {
+        if (!Array.isArray(images)) {
+                throw createHttpError(400, "صيغة صور المشروع غير صالحة");
         }
 
-        const base64Payload = image.split(",")[1] || "";
-        const estimatedBytes = Math.ceil((base64Payload.length * 3) / 4);
+        const validImages = images
+                .map((image) => (typeof image === "string" ? image.trim() : ""))
+                .filter(Boolean);
 
-        if (estimatedBytes > MAX_PROJECT_IMAGE_SIZE_BYTES) {
-                throw createHttpError(400, "حجم صورة المشروع يتجاوز الحد المسموح (10 ميجابايت)");
+        if (validImages.length < PROJECT_MIN_IMAGES || validImages.length > PROJECT_MAX_IMAGES) {
+                throw createHttpError(400, "يجب رفع ما بين 3 إلى 5 صور للمشروع");
         }
 
-        return uploadImage(image, "projects");
+        const uploads = [];
+
+        for (const image of validImages) {
+                if (image.startsWith("data:")) {
+                        assertImageSizeWithinLimit(image, "حجم الصورة");
+                        const uploadResult = await uploadImage(image, "projects");
+                        uploads.push({ url: uploadResult.url, fileId: uploadResult.fileId });
+                } else {
+                        uploads.push({ url: image, fileId: null });
+                }
+        }
+
+        return uploads;
 };
 
 const buildTotalsMap = (totals = []) => {
@@ -56,22 +84,23 @@ export const createProject = async (req, res) => {
                         shortDescription,
                         description,
                         category,
-                        image,
+                        images,
                         targetAmount,
                         status,
                         isActive,
                         isClosed = false,
                 } = req.body;
 
-                const uploadResult = await uploadProjectImage(image);
+                const uploadedImages = await uploadProjectImages(images);
 
                 const project = await Project.create({
                         title,
                         shortDescription,
                         description,
                         category,
-                        imageUrl: uploadResult.url,
-                        imageFileId: uploadResult.fileId,
+                        images: uploadedImages,
+                        imageUrl: uploadedImages[0]?.url || "",
+                        imageFileId: uploadedImages[0]?.fileId || null,
                         targetAmount,
                         status,
                         isActive,
@@ -96,23 +125,21 @@ export const updateProject = async (req, res) => {
                         return res.status(404).json({ message: "المشروع غير موجود" });
                 }
 
-                const { image, ...updates } = req.body || {};
+                const { images, ...updates } = req.body || {};
 
-                if (image !== undefined) {
-                        if (image) {
-                                const uploadResult = await uploadProjectImage(image);
-                                if (project.imageFileId) {
-                                        await deleteImage(project.imageFileId);
-                                }
-                                project.imageUrl = uploadResult.url;
-                                project.imageFileId = uploadResult.fileId;
-                        } else {
-                                if (project.imageFileId) {
-                                        await deleteImage(project.imageFileId);
-                                }
-                                project.imageUrl = "";
-                                project.imageFileId = null;
+                if (images !== undefined) {
+                        const previousFileIds = (project.images || []).map((img) => img.fileId).filter(Boolean);
+                        const uploadedImages = await uploadProjectImages(images);
+                        const newFileIds = new Set(uploadedImages.map((img) => img.fileId).filter(Boolean));
+                        const toDelete = previousFileIds.filter((fileId) => !newFileIds.has(fileId));
+
+                        if (toDelete.length) {
+                                await Promise.all(toDelete.map((fileId) => deleteImage(fileId)));
                         }
+
+                        project.images = uploadedImages;
+                        project.imageUrl = uploadedImages[0]?.url || "";
+                        project.imageFileId = uploadedImages[0]?.fileId || null;
                 }
 
                 Object.entries(updates).forEach(([key, value]) => {

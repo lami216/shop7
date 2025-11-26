@@ -2,21 +2,32 @@ import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import apiClient from "../lib/apiClient";
 import { formatNumber } from "../utils/numberFormat";
+import { compressImageFile } from "../utils/imageCompression";
 
 const AdminPage = () => {
         const [projects, setProjects] = useState([]);
         const [paymentMethods, setPaymentMethods] = useState([]);
         const [donations, setDonations] = useState([]);
         const [achievements, setAchievements] = useState([]);
-        const MAX_PROJECT_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB
+        const PROJECT_MIN_IMAGES = 3;
+        const PROJECT_MAX_IMAGES = 5;
+        const ACHIEVEMENT_MIN_IMAGES = 3;
+        const ACHIEVEMENT_MAX_IMAGES = 15;
+        const MAX_COMPRESSED_IMAGE_SIZE = 2 * 1024 * 1024; // 2MB
+        const COMPRESSION_OPTIONS = {
+                maxWidth: 1600,
+                maxHeight: 1600,
+                quality: 0.75,
+                outputFormat: "image/jpeg",
+                maxSizeBytes: MAX_COMPRESSED_IMAGE_SIZE,
+        };
         const [activeTab, setActiveTab] = useState("projects");
         const [projectForm, setProjectForm] = useState({
                 title: "",
                 shortDescription: "",
                 description: "",
                 category: "المشاريع العامة",
-                image: "",
-                imagePreview: "",
+                images: [],
                 targetAmount: 0,
                 status: "active",
                 isActive: true,
@@ -40,15 +51,6 @@ const AdminPage = () => {
                 videos: [""],
                 showOnHome: false,
         });
-
-        const readFileAsDataURL = (file) => {
-                return new Promise((resolve, reject) => {
-                        const reader = new FileReader();
-                        reader.onloadend = () => resolve(typeof reader.result === "string" ? reader.result : "");
-                        reader.onerror = reject;
-                        reader.readAsDataURL(file);
-                });
-        };
 
         const formatDateForInput = (value) => {
                 if (!value) return "";
@@ -80,33 +82,115 @@ const AdminPage = () => {
                 loadData();
         }, []);
 
-        const handleProjectImageChange = async (event) => {
-                const file = event.target.files?.[0];
-                if (!file) return;
+        const handleProjectImagesChange = async (event) => {
+                const files = Array.from(event.target.files || []);
+                if (!files.length) return;
 
-                if (file.size > MAX_PROJECT_IMAGE_SIZE) {
-                        toast.error("حجم الصورة يتجاوز 10 ميجابايت، يرجى اختيار صورة أصغر");
+                if (projectForm.images.length >= PROJECT_MAX_IMAGES) {
+                        toast.error("الحد الأقصى لصور المشروع هو 5 صور فقط");
                         return;
                 }
 
-                const base64 = await readFileAsDataURL(file);
-                setProjectForm((previous) => ({ ...previous, image: base64, imagePreview: base64 }));
+                const availableSlots = PROJECT_MAX_IMAGES - (projectForm.images?.length || 0);
+                if (availableSlots <= 0) return;
+
+                const selectedFiles = files.slice(0, availableSlots);
+                if (files.length > availableSlots) {
+                        toast.error("الحد الأقصى لصور المشروع هو 5 صور فقط");
+                }
+
+                try {
+                        const compressedImages = await Promise.all(
+                                selectedFiles.map((file) => compressImageFile(file, COMPRESSION_OPTIONS))
+                        );
+
+                        const validImages = compressedImages
+                                .map((result) => {
+                                        if (result.error || result.size > MAX_COMPRESSED_IMAGE_SIZE) {
+                                                toast.error("حجم الصورة بعد الضغط ما زال كبيرًا والحد الأقصى هو 2 ميغابايت");
+                                                return null;
+                                        }
+                                        return result.base64;
+                                })
+                                .filter(Boolean);
+
+                        if (!validImages.length) return;
+
+                        setProjectForm((prev) => ({ ...prev, images: [...prev.images, ...validImages] }));
+                } catch (error) {
+                        console.error(error);
+                        toast.error("تعذر معالجة صور المشروع، يرجى المحاولة مرة أخرى");
+                }
         };
 
         const handlePaymentImageChange = async (event) => {
                 const file = event.target.files?.[0];
                 if (!file) return;
 
-                const base64 = await readFileAsDataURL(file);
-                setPaymentForm((previous) => ({ ...previous, image: base64, imagePreview: base64 }));
+                try {
+                        const base64 = await compressImageFile(file, {
+                                ...COMPRESSION_OPTIONS,
+                                quality: 0.9,
+                                maxSizeBytes: 3 * 1024 * 1024,
+                        });
+
+                        if (base64.error) {
+                                toast.error("تعذّر ضغط صورة وسيلة الدفع، يرجى اختيار صورة أصغر");
+                                return;
+                        }
+
+                        setPaymentForm((previous) => ({ ...previous, image: base64.base64, imagePreview: base64.base64 }));
+                } catch (error) {
+                        console.error(error);
+                        toast.error("تعذر رفع صورة وسيلة الدفع، يرجى المحاولة مجددًا");
+                }
         };
 
         const handleAchievementImagesChange = async (event) => {
                 const files = Array.from(event.target.files || []);
                 if (!files.length) return;
 
-                const uploads = await Promise.all(files.map((file) => readFileAsDataURL(file)));
-                setAchievementForm((prev) => ({ ...prev, images: [...prev.images, ...uploads.filter(Boolean)] }));
+                const currentCount = achievementForm.images.length;
+                if (currentCount >= ACHIEVEMENT_MAX_IMAGES) {
+                        toast.error("الحد الأعلى للصور في الإنجاز هو 15 صورة فقط");
+                        return;
+                }
+
+                const availableSlots = ACHIEVEMENT_MAX_IMAGES - currentCount;
+                const selectedFiles = files.slice(0, availableSlots);
+                if (files.length > availableSlots) {
+                        toast.error("الحد الأعلى للصور في الإنجاز هو 15 صورة فقط");
+                }
+
+                try {
+                        const compressedImages = await Promise.all(
+                                selectedFiles.map((file) => compressImageFile(file, COMPRESSION_OPTIONS))
+                        );
+
+                        const validImages = compressedImages
+                                .map((result) => {
+                                        if (result.error || result.size > MAX_COMPRESSED_IMAGE_SIZE) {
+                                                toast.error("حجم الصورة بعد الضغط ما زال كبيرًا والحد الأقصى هو 2 ميغابايت");
+                                                return null;
+                                        }
+                                        return result.base64;
+                                })
+                                .filter(Boolean);
+
+                        if (!validImages.length) return;
+
+                        setAchievementForm((prev) => ({ ...prev, images: [...prev.images, ...validImages] }));
+                } catch (error) {
+                        console.error(error);
+                        toast.error("تعذر معالجة صور الإنجاز، يرجى المحاولة مرة أخرى");
+                }
+        };
+
+        const handleRemoveProjectImage = (index) => {
+                setProjectForm((prev) => ({
+                        ...prev,
+                        images: prev.images.filter((_, idx) => idx !== index),
+                }));
         };
 
         const handleRemoveAchievementImage = (index) => {
@@ -149,6 +233,17 @@ const AdminPage = () => {
 
         const handleProjectSubmit = async (e) => {
                 e.preventDefault();
+
+                if (projectForm.images.length < PROJECT_MIN_IMAGES) {
+                        toast.error("يجب إضافة 3 صور على الأقل للمشروع");
+                        return;
+                }
+
+                if (projectForm.images.length > PROJECT_MAX_IMAGES) {
+                        toast.error("الحد الأقصى لصور المشروع هو 5 صور فقط");
+                        return;
+                }
+
                 try {
                         await apiClient.post("/projects", {
                                 ...projectForm,
@@ -161,8 +256,7 @@ const AdminPage = () => {
                                 shortDescription: "",
                                 description: "",
                                 category: "المشاريع العامة",
-                                image: "",
-                                imagePreview: "",
+                                images: [],
                                 targetAmount: 0,
                                 status: "active",
                                 isActive: true,
@@ -233,6 +327,14 @@ const AdminPage = () => {
         const handleAchievementSubmit = async (e) => {
                 e.preventDefault();
                 try {
+                        if (
+                                achievementForm.images.length < ACHIEVEMENT_MIN_IMAGES ||
+                                achievementForm.images.length > ACHIEVEMENT_MAX_IMAGES
+                        ) {
+                                toast.error("يجب إضافة ما بين 3 إلى 15 صورة لكل إنجاز");
+                                return;
+                        }
+
                         const payload = {
                                 title: achievementForm.title,
                                 shortDescription: achievementForm.shortDescription,
@@ -383,20 +485,39 @@ const AdminPage = () => {
                                                                         />
                                                                 </div>
                                                                 <div className='space-y-2'>
-                                                                        <label className='block text-sm font-semibold text-ajv-moss'>صورة المشروع</label>
+                                                                        <label className='block text-sm font-semibold text-ajv-moss'>صور المشروع (3-5)</label>
                                                                         <input
                                                                                 type='file'
                                                                                 accept='image/*'
-                                                                                required
-                                                                                onChange={handleProjectImageChange}
+                                                                                multiple
+                                                                                onChange={handleProjectImagesChange}
                                                                                 className='w-full rounded-xl border border-ajv-mint px-3 py-2 text-ajv-moss focus:border-ajv-green focus:outline-none'
                                                                         />
-                                                                        {projectForm.imagePreview && (
-                                                                                <img
-                                                                                        src={projectForm.imagePreview}
-                                                                                        alt='معاينة صورة المشروع'
-                                                                                        className='h-32 w-full rounded-xl border border-ajv-mint object-cover'
-                                                                                />
+                                                                        {projectForm.images.length > 0 && (
+                                                                                <div className='grid gap-2 rounded-xl border border-ajv-mint/60 bg-ajv-cream/30 p-3'>
+                                                                                        {projectForm.images.map((image, idx) => (
+                                                                                                <div
+                                                                                                        key={idx}
+                                                                                                        className='flex items-center justify-between gap-2 rounded-lg bg-white p-2 shadow-sm'
+                                                                                                >
+                                                                                                        <div className='flex items-center gap-2'>
+                                                                                                                <img
+                                                                                                                        src={image}
+                                                                                                                        alt={`صورة المشروع ${idx + 1}`}
+                                                                                                                        className='h-16 w-16 rounded-lg object-cover'
+                                                                                                                />
+                                                                                                                <span className='text-xs text-ajv-moss/70'>الصورة {idx + 1}</span>
+                                                                                                        </div>
+                                                                                                        <button
+                                                                                                                type='button'
+                                                                                                                onClick={() => handleRemoveProjectImage(idx)}
+                                                                                                                className='rounded-lg bg-red-100 px-2 py-1 text-xs font-semibold text-red-700 hover:bg-red-200'
+                                                                                                        >
+                                                                                                                حذف
+                                                                                                        </button>
+                                                                                                </div>
+                                                                                        ))}
+                                                                                </div>
                                                                         )}
                                                                 </div>
                                                                 <div className='grid gap-3 md:grid-cols-3'>
@@ -765,7 +886,7 @@ const AdminPage = () => {
 
                                                         <div className='grid gap-3 md:grid-cols-2'>
                                                                 <div className='space-y-2'>
-                                                                        <label className='text-sm font-semibold text-ajv-moss'>صور الإنجاز (يتم رفعها عبر ImageKit)</label>
+                                                                        <label className='text-sm font-semibold text-ajv-moss'>صور الإنجاز (3-15 - يتم رفعها عبر ImageKit)</label>
                                                                         <input
                                                                                 type='file'
                                                                                 accept='image/*'

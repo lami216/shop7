@@ -23,6 +23,8 @@ const ProjectCard = ({ project, paymentMethods, onDonationComplete }) => {
         const displayAmount = customAmount ? Number(customAmount) : selectedAmount;
         const isCompleted = project.isClosed || (project.remainingAmount || 0) <= 0;
 
+        const projectImage = project?.images?.[0]?.url || project?.images?.[0] || project?.imageUrl;
+
         const handleOpen = () => {
                 if (customAmount) {
                         setSelectedAmount(Number(customAmount));
@@ -33,8 +35,8 @@ const ProjectCard = ({ project, paymentMethods, onDonationComplete }) => {
         return (
                 <div className='relative flex flex-col overflow-hidden rounded-2xl bg-white p-4 text-right shadow card-shadow border border-ajv-mint/50'>
                         <div className='relative h-48 w-full overflow-hidden rounded-xl'>
-                                {project.imageUrl ? (
-                                        <img src={project.imageUrl} alt={project.title} className='h-full w-full object-cover' />
+                                {projectImage ? (
+                                        <img src={projectImage} alt={project.title} className='h-full w-full object-cover' />
                                 ) : (
                                         <div className='flex h-full w-full items-center justify-center bg-ajv-cream text-ajv-moss'>
                                                 <Info className='h-8 w-8' />

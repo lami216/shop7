@@ -1,6 +1,29 @@
 import Achievement from "../models/achievement.model.js";
 import { uploadImage } from "../lib/imagekit.js";
 
+const createHttpError = (status, message) => {
+        const error = new Error(message);
+        error.status = status;
+        return error;
+};
+
+const MAX_IMAGE_SIZE_BYTES = 2 * 1024 * 1024;
+const ACHIEVEMENT_MIN_IMAGES = 3;
+const ACHIEVEMENT_MAX_IMAGES = 15;
+
+const calculateBase64Size = (base64String = "") => {
+        const payload = base64String.split(",")[1] || "";
+        return Math.ceil((payload.length * 3) / 4);
+};
+
+const assertImageSizeWithinLimit = (image) => {
+        if (!image?.startsWith("data:")) return;
+        const estimatedBytes = calculateBase64Size(image);
+        if (estimatedBytes > MAX_IMAGE_SIZE_BYTES) {
+                throw createHttpError(400, "حجم الصورة يتجاوز الحد الأقصى (2 ميغابايت لكل صورة)");
+        }
+};
+
 const normalizeVideos = (videos = []) =>
         (videos || [])
                 .filter((video) => typeof video === "string")
@@ -8,24 +31,29 @@ const normalizeVideos = (videos = []) =>
                 .filter(Boolean);
 
 const uploadAchievementImages = async (images = []) => {
+        if (!Array.isArray(images)) {
+                throw createHttpError(400, "صيغة الصور غير صالحة");
+        }
+
+        const trimmedImages = images
+                .map((image) => (typeof image === "string" ? image.trim() : ""))
+                .filter(Boolean);
+
+        if (trimmedImages.length < ACHIEVEMENT_MIN_IMAGES || trimmedImages.length > ACHIEVEMENT_MAX_IMAGES) {
+                throw createHttpError(400, "يجب إرفاق ما بين 3 إلى 15 صورة لكل إنجاز");
+        }
+
         const finalImages = [];
 
-        await Promise.all(
-                (images || []).map(async (image) => {
-                        if (typeof image !== "string") return;
-
-                        const trimmed = image.trim();
-                        if (!trimmed) return;
-
-                        if (trimmed.startsWith("data:")) {
-                                const uploadResult = await uploadImage(trimmed, "achievements");
-                                finalImages.push(uploadResult.url);
-                                return;
-                        }
-
-                        finalImages.push(trimmed);
-                })
-        );
+        for (const image of trimmedImages) {
+                if (image.startsWith("data:")) {
+                        assertImageSizeWithinLimit(image);
+                        const uploadResult = await uploadImage(image, "achievements");
+                        finalImages.push(uploadResult.url);
+                } else {
+                        finalImages.push(image);
+                }
+        }
 
         return finalImages;
 };
