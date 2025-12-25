@@ -4,11 +4,20 @@ import Project from "../models/project.model.js";
 export const getSiteStatistics = async (_req, res) => {
         try {
                 const [totalDonationsAgg, donationCount, donorGroups, projects, donationsByProject] = await Promise.all([
-                        Donation.aggregate([{ $group: { _id: null, total: { $sum: "$amount" } } }]),
-                        Donation.countDocuments(),
-                        Donation.aggregate([{ $group: { _id: { phone: "$donorPhone", name: "$donorName" } } }]),
+                        Donation.aggregate([
+                                { $match: { status: "confirmed" } },
+                                { $group: { _id: null, total: { $sum: "$amount" } } },
+                        ]),
+                        Donation.countDocuments({ status: "confirmed" }),
+                        Donation.aggregate([
+                                { $match: { status: "confirmed" } },
+                                { $group: { _id: { phone: "$donorPhone", name: "$donorName" } } },
+                        ]),
                         Project.find().lean(),
-                        Donation.aggregate([{ $group: { _id: "$project", totalAmount: { $sum: "$amount" } } }]),
+                        Donation.aggregate([
+                                { $match: { status: "confirmed" } },
+                                { $group: { _id: "$project", totalAmount: { $sum: "$amount" } } },
+                        ]),
                 ]);
 
                 const totalDonations = totalDonationsAgg[0]?.total || 0;

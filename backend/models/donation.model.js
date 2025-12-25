@@ -12,12 +12,12 @@ const donationSchema = new mongoose.Schema(
                 donorPhone: { type: String, trim: true },
                 phone: { type: String, trim: true },
                 projectNumber: { type: String, trim: true },
-                receiptImageUrl: { type: String, default: "" },
-                status: {
-                        type: String,
-                        enum: ["pending", "confirmed", "rejected"],
-                        default: "pending",
-                },
+        receiptImageUrl: { type: String, default: "" },
+        status: {
+                type: String,
+                enum: ["pending", "confirmed", "rejected"],
+                default: "confirmed",
+        },
         },
         { timestamps: true }
 );

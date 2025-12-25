@@ -176,6 +176,7 @@ export const getProjects = async (_req, res) => {
                 const [projects, donationTotals] = await Promise.all([
                         Project.find().sort({ createdAt: -1 }).lean(),
                         Donation.aggregate([
+                                { $match: { status: "confirmed" } },
                                 { $group: { _id: "$project", totalAmount: { $sum: "$amount" } } },
                         ]),
                 ]);
@@ -200,7 +201,7 @@ export const getProjectById = async (req, res) => {
                 }
 
                 const donationTotals = await Donation.aggregate([
-                        { $match: { project: project._id } },
+                        { $match: { project: project._id, status: "confirmed" } },
                         { $group: { _id: "$paymentMethod", totalAmount: { $sum: "$amount" }, donationsCount: { $sum: 1 } } },
                         {
                                 $lookup: {
