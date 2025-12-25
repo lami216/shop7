@@ -25,14 +25,27 @@ const assertImageSizeWithinLimit = (image, label) => {
         }
 };
 
+const normalizeProjectImageInput = (image) => {
+        if (typeof image === "string") {
+                const trimmed = image.trim();
+                return trimmed ? { url: trimmed, fileId: null } : null;
+        }
+
+        if (image && typeof image === "object") {
+                const url = typeof image.url === "string" ? image.url.trim() : "";
+                const fileId = typeof image.fileId === "string" ? image.fileId : null;
+                return url ? { url, fileId } : null;
+        }
+
+        return null;
+};
+
 const uploadProjectImages = async (images = []) => {
         if (!Array.isArray(images)) {
                 throw createHttpError(400, "صيغة صور المشروع غير صالحة");
         }
 
-        const validImages = images
-                .map((image) => (typeof image === "string" ? image.trim() : ""))
-                .filter(Boolean);
+        const validImages = images.map(normalizeProjectImageInput).filter(Boolean);
 
         if (validImages.length < PROJECT_MIN_IMAGES || validImages.length > PROJECT_MAX_IMAGES) {
                 throw createHttpError(400, "يجب رفع ما بين 3 إلى 5 صور للمشروع");
@@ -41,12 +54,12 @@ const uploadProjectImages = async (images = []) => {
         const uploads = [];
 
         for (const image of validImages) {
-                if (image.startsWith("data:")) {
-                        assertImageSizeWithinLimit(image, "حجم الصورة");
-                        const uploadResult = await uploadImage(image, "projects");
+                if (image.url.startsWith("data:")) {
+                        assertImageSizeWithinLimit(image.url, "حجم الصورة");
+                        const uploadResult = await uploadImage(image.url, "projects");
                         uploads.push({ url: uploadResult.url, fileId: uploadResult.fileId });
                 } else {
-                        uploads.push({ url: image, fileId: null });
+                        uploads.push({ url: image.url, fileId: image.fileId || null });
                 }
         }
 
