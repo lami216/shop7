@@ -62,6 +62,19 @@ const AdminPage = () => {
                 }
         };
 
+        const getDonationStatusLabel = (status) => {
+                switch (status) {
+                        case "confirmed":
+                                return "واصل";
+                        case "rejected":
+                                return "غير واصل";
+                        case "pending":
+                                return "قيد المراجعة";
+                        default:
+                                return "غير محدد";
+                }
+        };
+
         const loadData = async () => {
                 try {
                         const [projectsRes, paymentsRes, donationsRes, achievementsRes] = await Promise.all([
@@ -82,6 +95,17 @@ const AdminPage = () => {
         useEffect(() => {
                 loadData();
         }, []);
+
+        const handleDonationStatusUpdate = async (donationId, status) => {
+                try {
+                        const updatedDonation = await apiClient.patch(`/donations/${donationId}/status`, { status });
+                        setDonations((prev) => prev.map((donation) => (donation._id === donationId ? updatedDonation : donation)));
+                        toast.success("تم تحديث حالة التبرع");
+                } catch (error) {
+                        console.error(error);
+                        toast.error(error.response?.data?.message || "تعذّر تحديث حالة التبرع");
+                }
+        };
 
         const handleProjectImagesChange = async (event) => {
                 const files = Array.from(event.target.files || []);
@@ -459,12 +483,15 @@ const AdminPage = () => {
                         if (!projectId) return;
 
                         if (!grouped.has(projectId)) {
-                                grouped.set(projectId, { donations: [], total: 0 });
+                                grouped.set(projectId, { donations: [], total: 0, confirmedCount: 0 });
                         }
 
                         const entry = grouped.get(projectId);
                         entry.donations.push(donation);
-                        entry.total += Number(donation.amount) || 0;
+                        if (donation.status === "confirmed") {
+                                entry.total += Number(donation.amount) || 0;
+                                entry.confirmedCount += 1;
+                        }
                 });
 
                 return grouped;
@@ -798,8 +825,8 @@ const AdminPage = () => {
                                 <h3 className='text-lg font-bold text-ajv-moss'>تفاصيل التبرعات لكل مشروع</h3>
                                 <div className='mt-4 space-y-4'>
                                         {projects.map((project) => {
-                                                const projectStats = projectDonationsMap.get(project._id) || { donations: [], total: 0 };
-                                                const donorsCount = projectStats.donations.length;
+                                                const projectStats = projectDonationsMap.get(project._id) || { donations: [], total: 0, confirmedCount: 0 };
+                                                const donorsCount = projectStats.confirmedCount || 0;
                                                 const progress = project.targetAmount > 0 ? Math.min(100, Math.round((projectStats.total / project.targetAmount) * 100)) : 0;
 
                                                 return (
@@ -828,12 +855,14 @@ const AdminPage = () => {
                                                                                                 <th className='px-3 py-2'>المبلغ</th>
                                                                                                 <th className='px-3 py-2'>التطبيق</th>
                                                                                                 <th className='px-3 py-2'>الإيصال</th>
+                                                                                                <th className='px-3 py-2'>الحالة</th>
+                                                                                                <th className='px-3 py-2'>إجراء</th>
                                                                                         </tr>
                                                                                 </thead>
                                                                                 <tbody>
                                                                                         {projectStats.donations.length === 0 && (
                                                                                                 <tr>
-                                                                                                        <td colSpan={5} className='px-3 py-3 text-center text-ajv-moss/70'>
+                                                                                                        <td colSpan={7} className='px-3 py-3 text-center text-ajv-moss/70'>
                                                                                                                 لا توجد تبرعات مسجلة لهذا المشروع بعد.
                                                                                                         </td>
                                                                                                 </tr>
@@ -858,6 +887,26 @@ const AdminPage = () => {
                                                                                                                         <span className='text-ajv-moss/60'>لا يوجد</span>
                                                                                                                 )}
                                                                                                         </td>
+                                                                                                        <td className='px-3 py-2'>{getDonationStatusLabel(donation.status)}</td>
+                                                                                                        <td className='px-3 py-2'>
+                                                                                                                {donation.status === "confirmed" ? (
+                                                                                                                        <button
+                                                                                                                                type='button'
+                                                                                                                                onClick={() => handleDonationStatusUpdate(donation._id, "rejected")}
+                                                                                                                                className='rounded-lg bg-red-100 px-3 py-1 text-xs font-semibold text-red-700 hover:bg-red-200'
+                                                                                                                        >
+                                                                                                                                إلغاء الاحتساب
+                                                                                                                        </button>
+                                                                                                                ) : (
+                                                                                                                        <button
+                                                                                                                                type='button'
+                                                                                                                                onClick={() => handleDonationStatusUpdate(donation._id, "confirmed")}
+                                                                                                                                className='rounded-lg bg-ajv-green px-3 py-1 text-xs font-semibold text-white shadow hover:bg-ajv-moss'
+                                                                                                                        >
+                                                                                                                                إعادة الاحتساب
+                                                                                                                        </button>
+                                                                                                                )}
+                                                                                                        </td>
                                                                                                 </tr>
                                                                                         ))}
                                                                                 </tbody>
@@ -880,6 +929,8 @@ const AdminPage = () => {
                                                                                 <th className='px-3 py-2'>التطبيق</th>
                                                                                 <th className='px-3 py-2'>المتبرع</th>
                                                                                 <th className='px-3 py-2'>التاريخ</th>
+                                                                                <th className='px-3 py-2'>الحالة</th>
+                                                                                <th className='px-3 py-2'>إجراء</th>
                                                                         </tr>
                                                                 </thead>
                                                                 <tbody>
@@ -890,6 +941,26 @@ const AdminPage = () => {
                                                                                         <td className='px-3 py-2'>{donation.paymentMethod?.name}</td>
                                                                                         <td className='px-3 py-2'>{donation.donorName || donation.donorPhone || "مجهول"}</td>
                                                                                         <td className='px-3 py-2'>{new Date(donation.createdAt).toLocaleDateString("en-US")}</td>
+                                                                                        <td className='px-3 py-2'>{getDonationStatusLabel(donation.status)}</td>
+                                                                                        <td className='px-3 py-2'>
+                                                                                                {donation.status === "confirmed" ? (
+                                                                                                        <button
+                                                                                                                type='button'
+                                                                                                                onClick={() => handleDonationStatusUpdate(donation._id, "rejected")}
+                                                                                                                className='rounded-lg bg-red-100 px-3 py-1 text-xs font-semibold text-red-700 hover:bg-red-200'
+                                                                                                        >
+                                                                                                                إلغاء الاحتساب
+                                                                                                        </button>
+                                                                                                ) : (
+                                                                                                        <button
+                                                                                                                type='button'
+                                                                                                                onClick={() => handleDonationStatusUpdate(donation._id, "confirmed")}
+                                                                                                                className='rounded-lg bg-ajv-green px-3 py-1 text-xs font-semibold text-white shadow hover:bg-ajv-moss'
+                                                                                                        >
+                                                                                                                إعادة الاحتساب
+                                                                                                        </button>
+                                                                                                )}
+                                                                                        </td>
                                                                                 </tr>
                                                                         ))}
                                                                 </tbody>

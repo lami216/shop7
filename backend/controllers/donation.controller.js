@@ -83,7 +83,6 @@ export const createDonationWithReceipt = async (req, res) => {
                         phone,
                         donorPhone: phone,
                         receiptImageUrl,
-                        status: "pending",
                         projectNumber,
                 });
 
@@ -109,5 +108,29 @@ export const getDonations = async (_req, res) => {
         } catch (error) {
                 console.log("Error fetching donations", error.message);
                 res.status(500).json({ message: "تعذّر تحميل التبرعات", error: error.message });
+        }
+};
+
+export const updateDonationStatus = async (req, res) => {
+        try {
+                const { status } = req.body;
+                const allowedStatuses = ["pending", "confirmed", "rejected"];
+
+                if (!allowedStatuses.includes(status)) {
+                        return res.status(400).json({ message: "حالة التبرع غير صالحة" });
+                }
+
+                const donation = await Donation.findByIdAndUpdate(req.params.id, { status }, { new: true })
+                        .populate("project", "title category targetAmount")
+                        .populate("paymentMethod", "name accountNumber");
+
+                if (!donation) {
+                        return res.status(404).json({ message: "التبرع غير موجود" });
+                }
+
+                res.json(donation);
+        } catch (error) {
+                console.log("Error updating donation status", error.message);
+                res.status(500).json({ message: "تعذّر تحديث حالة التبرع", error: error.message });
         }
 };
