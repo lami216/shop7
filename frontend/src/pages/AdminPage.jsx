@@ -33,6 +33,7 @@ const AdminPage = () => {
                 isActive: true,
                 isClosed: false,
         });
+        const [editingProjectId, setEditingProjectId] = useState(null);
         const [paymentForm, setPaymentForm] = useState({
                 name: "",
                 accountNumber: "",
@@ -116,12 +117,31 @@ const AdminPage = () => {
 
                         if (!validImages.length) return;
 
-                        setProjectForm((prev) => ({ ...prev, images: [...prev.images, ...validImages] }));
+                        setProjectForm((prev) => ({
+                                ...prev,
+                                images: [...prev.images, ...validImages],
+                        }));
                 } catch (error) {
                         console.error(error);
                         toast.error("تعذر معالجة صور المشروع، يرجى المحاولة مرة أخرى");
                 }
         };
+
+        const getProjectImageUrl = (image) => {
+                if (typeof image === "string") return image;
+                return image?.url || "";
+        };
+
+        const normalizeProjectImagesForRequest = (images = []) =>
+                images
+                        .map((image) => {
+                                if (typeof image === "string") return image;
+                                if (image && typeof image === "object" && typeof image.url === "string") {
+                                        return { url: image.url, fileId: image.fileId || null };
+                                }
+                                return null;
+                        })
+                        .filter(Boolean);
 
         const handlePaymentImageChange = async (event) => {
                 const file = event.target.files?.[0];
@@ -231,6 +251,21 @@ const AdminPage = () => {
                 }));
         };
 
+        const resetProjectForm = () => {
+                setProjectForm({
+                        title: "",
+                        shortDescription: "",
+                        description: "",
+                        category: "المشاريع العامة",
+                        images: [],
+                        targetAmount: 0,
+                        status: "active",
+                        isActive: true,
+                        isClosed: false,
+                });
+                setEditingProjectId(null);
+        };
+
         const handleProjectSubmit = async (e) => {
                 e.preventDefault();
 
@@ -245,26 +280,25 @@ const AdminPage = () => {
                 }
 
                 try {
-                        await apiClient.post("/projects", {
+                        const payload = {
                                 ...projectForm,
+                                images: normalizeProjectImagesForRequest(projectForm.images),
                                 targetAmount: Number(projectForm.targetAmount),
                                 isClosed: Boolean(projectForm.isClosed),
-                        });
-                        toast.success("تمت إضافة المشروع بنجاح");
-                        setProjectForm({
-                                title: "",
-                                shortDescription: "",
-                                description: "",
-                                category: "المشاريع العامة",
-                                images: [],
-                                targetAmount: 0,
-                                status: "active",
-                                isActive: true,
-                                isClosed: false,
-                        });
+                        };
+
+                        if (editingProjectId) {
+                                await apiClient.patch(`/projects/${editingProjectId}`, payload);
+                                toast.success("تم تحديث المشروع");
+                        } else {
+                                await apiClient.post("/projects", payload);
+                                toast.success("تمت إضافة المشروع بنجاح");
+                        }
+
+                        resetProjectForm();
                         loadData();
                 } catch (error) {
-                        toast.error(error.response?.data?.message || "تعذر إضافة المشروع");
+                        toast.error(error.response?.data?.message || "تعذر حفظ المشروع");
                 }
         };
 
@@ -391,6 +425,21 @@ const AdminPage = () => {
                 setProjects((prev) => prev.map((project) => (project._id === id ? { ...project, [key]: value } : project)));
         };
 
+        const handleProjectEdit = (project) => {
+                setProjectForm({
+                        title: project.title || "",
+                        shortDescription: project.shortDescription || "",
+                        description: project.description || "",
+                        category: project.category || "المشاريع العامة",
+                        images: project.images || [],
+                        targetAmount: project.targetAmount || 0,
+                        status: project.status || "active",
+                        isActive: Boolean(project.isActive),
+                        isClosed: Boolean(project.isClosed),
+                });
+                setEditingProjectId(project._id);
+        };
+
         const projectDonationsMap = useMemo(() => {
                 const grouped = new Map();
                 donations.forEach((donation) => {
@@ -441,7 +490,9 @@ const AdminPage = () => {
                                 <>
                                         <section className='mt-6 grid gap-6 lg:grid-cols-2'>
                                                 <div className='rounded-2xl border border-ajv-mint/60 bg-white p-5 shadow card-shadow'>
-                                                        <h2 className='text-xl font-bold text-ajv-moss'>إضافة مشروع جديد</h2>
+                                                        <h2 className='text-xl font-bold text-ajv-moss'>
+                                                                {editingProjectId ? "تعديل المشروع" : "إضافة مشروع جديد"}
+                                                        </h2>
                                                         <form onSubmit={handleProjectSubmit} className='mt-4 grid gap-3'>
                                                                 <input
                                                                         type='text'
@@ -495,14 +546,16 @@ const AdminPage = () => {
                                                                         />
                                                                         {projectForm.images.length > 0 && (
                                                                                 <div className='grid gap-2 rounded-xl border border-ajv-mint/60 bg-ajv-cream/30 p-3'>
-                                                                                        {projectForm.images.map((image, idx) => (
+                                                                                        {projectForm.images.map((image, idx) => {
+                                                                                                const imageUrl = getProjectImageUrl(image);
+                                                                                                return (
                                                                                                 <div
                                                                                                         key={idx}
                                                                                                         className='flex items-center justify-between gap-2 rounded-lg bg-white p-2 shadow-sm'
                                                                                                 >
                                                                                                         <div className='flex items-center gap-2'>
                                                                                                                 <img
-                                                                                                                        src={image}
+                                                                                                                        src={imageUrl}
                                                                                                                         alt={`صورة المشروع ${idx + 1}`}
                                                                                                                         className='h-16 w-16 rounded-lg object-cover'
                                                                                                                 />
@@ -516,7 +569,8 @@ const AdminPage = () => {
                                                                                                                 حذف
                                                                                                         </button>
                                                                                                 </div>
-                                                                                        ))}
+                                                                                        );
+                                                                                        })}
                                                                                 </div>
                                                                         )}
                                                                 </div>
@@ -546,12 +600,23 @@ const AdminPage = () => {
                                                                                 />
                                                                                 إغلاق التبرعات
                                                                         </label>
-                                                                        <button
-                                                                                type='submit'
-                                                                                className='rounded-xl bg-ajv-green px-4 py-2 text-sm font-semibold text-white shadow hover:bg-ajv-moss'
-                                                                        >
-                                                                                حفظ المشروع
-                                                                        </button>
+                                                                        <div className='flex flex-wrap items-center gap-2'>
+                                                                                <button
+                                                                                        type='submit'
+                                                                                        className='rounded-xl bg-ajv-green px-4 py-2 text-sm font-semibold text-white shadow hover:bg-ajv-moss'
+                                                                                >
+                                                                                        {editingProjectId ? "حفظ التعديلات" : "حفظ المشروع"}
+                                                                                </button>
+                                                                                {editingProjectId && (
+                                                                                        <button
+                                                                                                type='button'
+                                                                                                onClick={resetProjectForm}
+                                                                                                className='rounded-xl border border-ajv-mint px-4 py-2 text-sm font-semibold text-ajv-moss hover:bg-ajv-cream'
+                                                                                        >
+                                                                                                إلغاء التعديل
+                                                                                        </button>
+                                                                                )}
+                                                                        </div>
                                                                 </div>
                                                         </form>
                                                 </div>
@@ -621,6 +686,13 @@ const AdminPage = () => {
                                                                                 <p className='text-sm font-semibold text-ajv-moss'>{project.title}</p>
                                                                                 <p className='text-xs text-ajv-moss/70'>المتحصل: {formatNumber(project.currentAmount || 0)} / الهدف {formatNumber(project.targetAmount || 0)}</p>
                                                                         </div>
+                                                                        <button
+                                                                                type='button'
+                                                                                onClick={() => handleProjectEdit(project)}
+                                                                                className='rounded-lg border border-ajv-mint px-3 py-1 text-xs font-semibold text-ajv-moss hover:bg-ajv-cream'
+                                                                        >
+                                                                                تعديل
+                                                                        </button>
                                                                         <label className='flex items-center gap-2 text-sm text-ajv-moss'>
                                                                                 <input
                                                                                         type='checkbox'
