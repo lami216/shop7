@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import apiClient from "../lib/apiClient";
 import { formatNumber } from "../utils/numberFormat";
@@ -440,6 +440,18 @@ const AdminPage = () => {
                 setEditingProjectId(project._id);
         };
 
+        const projectFormRef = useRef(null);
+
+        useEffect(() => {
+                if (!editingProjectId) return;
+                if (!projectFormRef.current) return;
+                projectFormRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+                const firstInput = projectFormRef.current.querySelector("input, textarea, select");
+                if (firstInput) {
+                        firstInput.focus();
+                }
+        }, [editingProjectId]);
+
         const projectDonationsMap = useMemo(() => {
                 const grouped = new Map();
                 donations.forEach((donation) => {
@@ -489,7 +501,7 @@ const AdminPage = () => {
                         {activeTab === "projects" && (
                                 <>
                                         <section className='mt-6 grid gap-6 lg:grid-cols-2'>
-                                                <div className='rounded-2xl border border-ajv-mint/60 bg-white p-5 shadow card-shadow'>
+                                                <div ref={projectFormRef} className='rounded-2xl border border-ajv-mint/60 bg-white p-5 shadow card-shadow'>
                                                         <h2 className='text-xl font-bold text-ajv-moss'>
                                                                 {editingProjectId ? "تعديل المشروع" : "إضافة مشروع جديد"}
                                                         </h2>
