@@ -50,25 +50,13 @@ const ProjectDetailPage = () => {
                 fetchProjectData();
         }, [id]);
 
-        const { project, stats, paymentBreakdown = [] } = data || {};
+        const { project, stats = {}, paymentBreakdown = [] } = data || {};
         const totalFromPayments = useMemo(
                 () => paymentBreakdown.reduce((sum, item) => sum + (item.totalAmount || 0), 0),
                 [paymentBreakdown]
         );
 
         const isCompleted = project?.isClosed || (stats?.remainingAmount || 0) <= 0;
-
-        if (loading) {
-                return (
-                        <div className='flex items-center justify-center py-20'>
-                                <div className='h-10 w-10 animate-spin rounded-full border-4 border-ajv-mint border-t-ajv-green' />
-                        </div>
-                );
-        }
-
-        if (!project) {
-                return <div className='px-4 py-10 text-center text-ajv-moss'>المشروع غير موجود</div>;
-        }
 
         const projectImages = useMemo(() => {
                 if (!project) return [];
@@ -84,7 +72,19 @@ const ProjectDetailPage = () => {
 
         useEffect(() => {
                 setCurrentImageIndex(0);
-        }, [project?.id]);
+        }, [project?._id]);
+
+        if (loading) {
+                return (
+                        <div className='flex items-center justify-center py-20'>
+                                <div className='h-10 w-10 animate-spin rounded-full border-4 border-ajv-mint border-t-ajv-green' />
+                        </div>
+                );
+        }
+
+        if (!project) {
+                return <div className='px-4 py-10 text-center text-ajv-moss'>المشروع غير موجود</div>;
+        }
 
         const hasMultipleImages = projectImages.length > 1;
 
