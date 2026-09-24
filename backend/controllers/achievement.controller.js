@@ -1,5 +1,5 @@
 import Achievement from "../models/achievement.model.js";
-import { uploadImage } from "../lib/imagekit.js";
+import { cleanupImageIds, uploadSanitizedImage } from "../lib/imageAssets.js";
 
 const createHttpError = (status, message) => {
         const error = new Error(message);
@@ -7,22 +7,17 @@ const createHttpError = (status, message) => {
         return error;
 };
 
-const MAX_IMAGE_SIZE_BYTES = 2 * 1024 * 1024;
 const ACHIEVEMENT_MIN_IMAGES = 3;
 const ACHIEVEMENT_MAX_IMAGES = 15;
-
-const calculateBase64Size = (base64String = "") => {
-        const payload = base64String.split(",")[1] || "";
-        return Math.ceil((payload.length * 3) / 4);
-};
-
-const assertImageSizeWithinLimit = (image) => {
-        if (!image?.startsWith("data:")) return;
-        const estimatedBytes = calculateBase64Size(image);
-        if (estimatedBytes > MAX_IMAGE_SIZE_BYTES) {
-                throw createHttpError(400, "حجم الصورة يتجاوز الحد الأقصى (2 ميغابايت لكل صورة)");
-        }
-};
+const ACHIEVEMENT_UPDATE_FIELDS = [
+        "title",
+        "shortDescription",
+        "fullDescription",
+        "date",
+        "location",
+        "videos",
+        "showOnHome",
+];
 
 const normalizeVideos = (videos = []) =>
         (videos || [])
@@ -30,7 +25,7 @@ const normalizeVideos = (videos = []) =>
                 .map((video) => video.trim())
                 .filter(Boolean);
 
-const uploadAchievementImages = async (images = []) => {
+const uploadAchievementImages = async (images = [], existingFileIdsByUrl = new Map()) => {
         if (!Array.isArray(images)) {
                 throw createHttpError(400, "صيغة الصور غير صالحة");
         }
@@ -43,22 +38,32 @@ const uploadAchievementImages = async (images = []) => {
                 throw createHttpError(400, "يجب إرفاق ما بين 3 إلى 15 صورة لكل إنجاز");
         }
 
-        const finalImages = [];
+        const assets = [];
+        const uploadedFileIds = [];
 
-        for (const image of trimmedImages) {
-                if (image.startsWith("data:")) {
-                        assertImageSizeWithinLimit(image);
-                        const uploadResult = await uploadImage(image, "achievements");
-                        finalImages.push(uploadResult.url);
-                } else {
-                        finalImages.push(image);
+        try {
+                for (const image of trimmedImages) {
+                        if (image.startsWith("data:")) {
+                                const uploadResult = await uploadSanitizedImage(image, "achievements");
+                                assets.push({ url: uploadResult.url, fileId: uploadResult.fileId });
+                                uploadedFileIds.push(uploadResult.fileId);
+                        } else {
+                                if (!existingFileIdsByUrl.has(image)) {
+                                        throw createHttpError(400, "مرجع صورة الإنجاز غير صالح");
+                                }
+                                assets.push({ url: image, fileId: existingFileIdsByUrl.get(image) || null });
+                        }
                 }
+        } catch (error) {
+                await cleanupImageIds(uploadedFileIds);
+                throw error;
         }
 
-        return finalImages;
+        return { assets, uploadedFileIds };
 };
 
 export const createAchievement = async (req, res) => {
+        let uploadedFileIds = [];
         try {
                 const {
                         title,
@@ -71,7 +76,9 @@ export const createAchievement = async (req, res) => {
                         showOnHome = false,
                 } = req.body;
 
-                const processedImages = await uploadAchievementImages(images);
+                const uploadBatch = await uploadAchievementImages(images);
+                const processedImages = uploadBatch.assets.map((asset) => asset.url);
+                uploadedFileIds = uploadBatch.uploadedFileIds;
                 const trimmedVideos = normalizeVideos(videos);
                 const parsedDate = date ? new Date(date) : undefined;
 
@@ -82,21 +89,27 @@ export const createAchievement = async (req, res) => {
                         date: parsedDate,
                         location,
                         images: processedImages,
+                        imageFileIds: uploadBatch.assets.map((asset) => asset.fileId).filter(Boolean),
+                        imageAssets: uploadBatch.assets,
                         videos: trimmedVideos,
                         showOnHome,
                 });
 
                 res.status(201).json(achievement);
         } catch (error) {
+                await cleanupImageIds(uploadedFileIds);
                 const status = error.status || 500;
                 if (status >= 500) {
-                        console.log("Error creating achievement", error.message);
+                        console.log("Error creating achievement");
                 }
-                res.status(status).json({ message: "تعذّر إنشاء الإنجاز", error: error.message });
+                res.status(status).json({ message: "تعذّر إنشاء الإنجاز" });
         }
 };
 
 export const updateAchievement = async (req, res) => {
+        let uploadedFileIds = [];
+        let previousFileIdsToDelete = [];
+        let persisted = false;
         try {
                 const achievement = await Achievement.findById(req.params.id);
 
@@ -104,10 +117,30 @@ export const updateAchievement = async (req, res) => {
                         return res.status(404).json({ message: "الإنجاز غير موجود" });
                 }
 
-                const updates = { ...req.body };
+                const updates = {};
+                ACHIEVEMENT_UPDATE_FIELDS.forEach((key) => {
+                        if (req.body?.[key] !== undefined) updates[key] = req.body[key];
+                });
 
-                if (updates.images !== undefined) {
-                        updates.images = await uploadAchievementImages(updates.images);
+                if (req.body?.images !== undefined) {
+                        const currentAssets = achievement.imageAssets?.length
+                                ? achievement.imageAssets
+                                : (achievement.images || []).map((url, index) => ({
+                                        url,
+                                        fileId: achievement.imageFileIds?.[index] || null,
+                                }));
+                        const existingFileIdsByUrl = new Map(
+                                currentAssets.map((asset) => [asset.url, asset.fileId]),
+                        );
+                        const uploadBatch = await uploadAchievementImages(req.body.images, existingFileIdsByUrl);
+                        uploadedFileIds = uploadBatch.uploadedFileIds;
+                        const retainedFileIds = new Set(uploadBatch.assets.map((asset) => asset.fileId).filter(Boolean));
+                        previousFileIdsToDelete = currentAssets
+                                .map((asset) => asset.fileId)
+                                .filter((fileId) => fileId && !retainedFileIds.has(fileId));
+                        updates.images = uploadBatch.assets.map((asset) => asset.url);
+                        updates.imageFileIds = uploadBatch.assets.map((asset) => asset.fileId).filter(Boolean);
+                        updates.imageAssets = uploadBatch.assets;
                 }
 
                 if (updates.videos) {
@@ -124,14 +157,17 @@ export const updateAchievement = async (req, res) => {
                 });
 
                 await achievement.save();
+                persisted = true;
+                await cleanupImageIds(previousFileIdsToDelete);
 
                 res.json(achievement);
         } catch (error) {
+                if (!persisted) await cleanupImageIds(uploadedFileIds);
                 const status = error.status || 500;
                 if (status >= 500) {
-                        console.log("Error updating achievement", error.message);
+                        console.log("Error updating achievement");
                 }
-                res.status(status).json({ message: "تعذّر تحديث الإنجاز", error: error.message });
+                res.status(status).json({ message: "تعذّر تحديث الإنجاز" });
         }
 };
 
@@ -148,8 +184,8 @@ export const getAchievements = async (req, res) => {
 
                 res.json(achievements);
         } catch (error) {
-                console.log("Error fetching achievements", error.message);
-                res.status(500).json({ message: "تعذّر تحميل الإنجازات", error: error.message });
+                console.log("Error fetching achievements");
+                res.status(500).json({ message: "تعذّر تحميل الإنجازات" });
         }
 };
 
@@ -163,8 +199,8 @@ export const getAchievementById = async (req, res) => {
 
                 res.json(achievement);
         } catch (error) {
-                console.log("Error fetching achievement", error.message);
-                res.status(500).json({ message: "تعذّر تحميل تفاصيل الإنجاز", error: error.message });
+                console.log("Error fetching achievement");
+                res.status(500).json({ message: "تعذّر تحميل تفاصيل الإنجاز" });
         }
 };
 
@@ -176,9 +212,14 @@ export const deleteAchievement = async (req, res) => {
                         return res.status(404).json({ message: "الإنجاز غير موجود" });
                 }
 
+                const fileIds = deleted.imageAssets?.length
+                        ? deleted.imageAssets.map((asset) => asset.fileId)
+                        : deleted.imageFileIds;
+                await cleanupImageIds(fileIds);
+
                 res.json({ message: "تم حذف الإنجاز" });
         } catch (error) {
-                console.log("Error deleting achievement", error.message);
-                res.status(500).json({ message: "تعذّر حذف الإنجاز", error: error.message });
+                console.log("Error deleting achievement");
+                res.status(500).json({ message: "تعذّر حذف الإنجاز" });
         }
 };

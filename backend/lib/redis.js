@@ -15,3 +15,10 @@ export const redis = url ? new Redis(url) : {
   set: async () => {},
   del: async () => {},
 };
+
+export const verifyRedisConnection = async (client = redis) => {
+  const response = await client.ping();
+  if (response !== "PONG") {
+    throw new Error("Redis readiness check failed");
+  }
+};

@@ -11,7 +11,7 @@ const AchievementsPage = () => {
                         try {
                                 const data = await apiClient.get("/achievements");
                                 setAchievements(data || []);
-                        } catch (error) {
+                        } catch {
                                 toast.error("تعذّر تحميل الإنجازات");
                         }
                 };

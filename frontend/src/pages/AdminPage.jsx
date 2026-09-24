@@ -87,7 +87,7 @@ const AdminPage = () => {
                         setPaymentMethods(paymentsRes);
                         setDonations(donationsRes);
                         setAchievements(achievementsRes || []);
-                } catch (error) {
+                } catch {
                         toast.error("تحتاج لتسجيل الدخول كمسؤول لإدارة المنصة");
                 }
         };
@@ -331,7 +331,7 @@ const AdminPage = () => {
                         await apiClient.patch(`/projects/${id}`, updates);
                         toast.success("تم تحديث المشروع");
                         loadData();
-                } catch (error) {
+                } catch {
                         toast.error("تعذر تحديث المشروع");
                 }
         };
@@ -353,7 +353,7 @@ const AdminPage = () => {
                         await apiClient.patch(`/payment-methods/${id}`, updates);
                         toast.success("تم تحديث وسيلة الدفع");
                         loadData();
-                } catch (error) {
+                } catch {
                         toast.error("تعذر تحديث وسيلة الدفع");
                 }
         };
@@ -363,7 +363,7 @@ const AdminPage = () => {
                         await apiClient.delete(`/payment-methods/${id}`);
                         toast.success("تم حذف وسيلة الدفع");
                         loadData();
-                } catch (error) {
+                } catch {
                         toast.error("تعذر حذف وسيلة الدفع");
                 }
         };
@@ -440,7 +440,7 @@ const AdminPage = () => {
                         await apiClient.delete(`/achievements/${id}`);
                         toast.success("تم حذف الإنجاز");
                         loadData();
-                } catch (error) {
+                } catch {
                         toast.error("تعذر حذف الإنجاز");
                 }
         };

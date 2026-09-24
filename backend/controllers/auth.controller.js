@@ -1,6 +1,7 @@
 import { redis } from "../lib/redis.js";
 import User from "../models/user.model.js";
 import jwt from "jsonwebtoken";
+import { isProductionEnvironment } from "../config/environment.js";
 
 const generateTokens = (userId) => {
 	const accessToken = jwt.sign({ userId }, process.env.ACCESS_TOKEN_SECRET, {
@@ -21,13 +22,13 @@ const storeRefreshToken = async (userId, refreshToken) => {
 const setCookies = (res, accessToken, refreshToken) => {
 	res.cookie("accessToken", accessToken, {
 		httpOnly: true, // prevent XSS attacks, cross site scripting attack
-		secure: process.env.NODE_ENV === "production",
+		secure: isProductionEnvironment(),
 		sameSite: "strict", // prevents CSRF attack, cross-site request forgery attack
 		maxAge: 15 * 60 * 1000, // 15 minutes
 	});
 	res.cookie("refreshToken", refreshToken, {
 		httpOnly: true, // prevent XSS attacks, cross site scripting attack
-		secure: process.env.NODE_ENV === "production",
+		secure: isProductionEnvironment(),
 		sameSite: "strict", // prevents CSRF attack, cross-site request forgery attack
 		maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
 	});
@@ -60,8 +61,8 @@ export const signup = async (req, res) => {
 			role: user.role,
 		});
 	} catch (error) {
-		console.log("Error in signup controller", error.message);
-		res.status(500).json({ message: error.message });
+		console.log("Error in signup controller");
+		res.status(500).json({ message: "Server error" });
 	}
 };
 
@@ -90,8 +91,8 @@ export const login = async (req, res) => {
 			res.status(400).json({ message: "Invalid email or password" });
 		}
 	} catch (error) {
-		console.log("Error in login controller", error.message);
-		res.status(500).json({ message: error.message });
+		console.log("Error in login controller");
+		res.status(500).json({ message: "Server error" });
 	}
 };
 
@@ -107,8 +108,8 @@ export const logout = async (req, res) => {
 		res.clearCookie("refreshToken");
 		res.json({ message: "Logged out successfully" });
 	} catch (error) {
-		console.log("Error in logout controller", error.message);
-		res.status(500).json({ message: "Server error", error: error.message });
+		console.log("Error in logout controller");
+		res.status(500).json({ message: "Server error" });
 	}
 };
 
@@ -132,15 +133,15 @@ export const refreshToken = async (req, res) => {
 
 		res.cookie("accessToken", accessToken, {
 			httpOnly: true,
-			secure: process.env.NODE_ENV === "production",
+			secure: isProductionEnvironment(),
 			sameSite: "strict",
 			maxAge: 15 * 60 * 1000,
 		});
 
 		res.json({ message: "Token refreshed successfully" });
 	} catch (error) {
-		console.log("Error in refreshToken controller", error.message);
-		res.status(500).json({ message: "Server error", error: error.message });
+		console.log("Error in refreshToken controller");
+		res.status(500).json({ message: "Server error" });
 	}
 };
 
@@ -148,6 +149,6 @@ export const getProfile = async (req, res) => {
 	try {
 		res.json(req.user);
 	} catch (error) {
-		res.status(500).json({ message: "Server error", error: error.message });
+		res.status(500).json({ message: "Server error" });
 	}
 };

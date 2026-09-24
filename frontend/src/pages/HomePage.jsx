@@ -26,7 +26,7 @@ const HomePage = () => {
                                 setPaymentMethods(paymentsRes);
                                 setStats(statsRes);
                                 setAchievements(achievementsRes || []);
-                        } catch (error) {
+                        } catch {
                                 toast.error("تعذّر تحميل بيانات المنصة");
                         }
                 };
