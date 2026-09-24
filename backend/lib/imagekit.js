@@ -1,5 +1,5 @@
-// backend/lib/imagekit.js
-import ImageKit from "imagekit";
+import { randomUUID } from "node:crypto";
+import ImageKit, { toFile } from "@imagekit/nodejs";
 
 const { IMAGEKIT_PUBLIC_KEY, IMAGEKIT_PRIVATE_KEY, IMAGEKIT_URL_ENDPOINT } = process.env;
 
@@ -8,21 +8,29 @@ if (!IMAGEKIT_PUBLIC_KEY || !IMAGEKIT_PRIVATE_KEY || !IMAGEKIT_URL_ENDPOINT) {
 }
 
 export const imagekitClient = new ImageKit({
-  publicKey: IMAGEKIT_PUBLIC_KEY || "",
-  privateKey: IMAGEKIT_PRIVATE_KEY || "",
-  urlEndpoint: IMAGEKIT_URL_ENDPOINT || "",
+  privateKey: IMAGEKIT_PRIVATE_KEY || "private_missing",
+  maxRetries: 1,
+  timeout: 20_000,
 });
+
+function normalizeUploadBytes(fileBase64OrBuffer) {
+  if (Buffer.isBuffer(fileBase64OrBuffer)) return fileBase64OrBuffer;
+  if (typeof fileBase64OrBuffer === "string") {
+    const match = fileBase64OrBuffer.match(/^data:[^;,]+;base64,([A-Za-z0-9+/=]+)$/);
+    if (match) return Buffer.from(match[1], "base64");
+  }
+  throw new TypeError("Image upload input must be a Buffer or base64 data URL");
+}
 
 export async function uploadImage(fileBase64OrBuffer, folder = "products") {
   if (!IMAGEKIT_PUBLIC_KEY || !IMAGEKIT_PRIVATE_KEY || !IMAGEKIT_URL_ENDPOINT) {
     throw new Error("ImageKit env missing (IMAGEKIT_PUBLIC_KEY/PRIVATE_KEY/URL_ENDPOINT).");
   }
-  const res = await imagekitClient.upload({
-    file: fileBase64OrBuffer, // Base64 data URL or Buffer
-    fileName: `${Date.now()}.jpg`,
-    folder,
-  });
-  return { url: res.url, fileId: res.fileId };
+
+  const fileName = `${randomUUID()}.jpg`;
+  const file = await toFile(normalizeUploadBytes(fileBase64OrBuffer), fileName);
+  const response = await imagekitClient.files.upload({ file, fileName, folder });
+  return { url: response.url, fileId: response.fileId };
 }
 
 export async function deleteImage(fileId) {
@@ -31,5 +39,5 @@ export async function deleteImage(fileId) {
     console.warn("[ImageKit] Missing env, skip delete.");
     return;
   }
-  await imagekitClient.deleteFile(fileId);
+  await imagekitClient.files.delete(fileId);
 }

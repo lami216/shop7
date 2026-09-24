@@ -6,24 +6,31 @@
         "scripts": {
                 "dev": "nodemon backend/server.js",
                 "start": "node backend/server.js",
-                "build": "npm install && npm install --prefix frontend && npm run build --prefix frontend"
+                "test": "node --test test/*.test.js",
+                "build": "npm ci --prefix frontend && npm run build --prefix frontend"
         },
         "keywords": [],
         "author": "",
         "type": "module",
         "license": "ISC",
+        "engines": {
+                "node": ">=20.19"
+        },
         "dependencies": {
-                "bcryptjs": "^2.4.3",
-                "cookie-parser": "^1.4.6",
-                "dotenv": "^16.4.5",
-                "express": "^4.19.2",
-                "imagekit": "^5.2.0",
-                "ioredis": "^5.4.1",
-                "jsonwebtoken": "^9.0.2",
-                "mongoose": "^8.5.3",
-                "multer": "^2.0.2"
+                "@imagekit/nodejs": "^7.12.1",
+                "bcryptjs": "^3.0.3",
+                "cookie-parser": "^1.4.7",
+                "dotenv": "^16.6.1",
+                "express": "^4.22.3",
+                "express-rate-limit": "^8.2.2",
+                "ioredis": "^5.11.1",
+                "jsonwebtoken": "^9.0.3",
+                "mongoose": "^8.24.4",
+                "multer": "^2.4.0",
+                "sharp": "^0.35.4"
         },
         "devDependencies": {
-                "nodemon": "^3.1.4"
+                "nodemon": "^3.1.4",
+                "supertest": "^7.2.2"
         }
 }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { ArrowLeft, ArrowRight, HandHeart } from "lucide-react";
 import toast from "react-hot-toast";
@@ -31,7 +31,7 @@ const ProjectDetailPage = () => {
         const [currentImageIndex, setCurrentImageIndex] = useState(0);
         const [touchStartX, setTouchStartX] = useState(null);
 
-        const fetchProjectData = async () => {
+        const fetchProjectData = useCallback(async () => {
                 try {
                         const [projectRes, methodsRes] = await Promise.all([
                                 apiClient.get(`/projects/${id}`),
@@ -39,16 +39,16 @@ const ProjectDetailPage = () => {
                         ]);
                         setData(projectRes);
                         setPaymentMethods(methodsRes);
-                } catch (error) {
+                } catch {
                         toast.error("تعذّر تحميل تفاصيل المشروع");
                 } finally {
                         setLoading(false);
                 }
-        };
+        }, [id]);
 
         useEffect(() => {
                 fetchProjectData();
-        }, [id]);
+        }, [fetchProjectData]);
 
         const { project, stats = {}, paymentBreakdown = [] } = data || {};
         const totalFromPayments = useMemo(

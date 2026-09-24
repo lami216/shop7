@@ -1,6 +1,6 @@
 import Donation from "../models/donation.model.js";
 import Project from "../models/project.model.js";
-import { deleteImage, uploadImage } from "../lib/imagekit.js";
+import { cleanupImageIds, uploadSanitizedImage } from "../lib/imageAssets.js";
 
 const createHttpError = (status, message) => {
         const error = new Error(message);
@@ -8,39 +8,34 @@ const createHttpError = (status, message) => {
         return error;
 };
 
-const MAX_IMAGE_SIZE_BYTES = 2 * 1024 * 1024; // 2MB
 const PROJECT_MIN_IMAGES = 3;
 const PROJECT_MAX_IMAGES = 5;
-
-const calculateBase64Size = (base64String = "") => {
-        const payload = base64String.split(",")[1] || "";
-        return Math.ceil((payload.length * 3) / 4);
-};
-
-const assertImageSizeWithinLimit = (image, label) => {
-        if (!image?.startsWith("data:")) return;
-        const estimatedBytes = calculateBase64Size(image);
-        if (estimatedBytes > MAX_IMAGE_SIZE_BYTES) {
-                throw createHttpError(400, `${label} يتجاوز الحد الأقصى المسموح (2 ميغابايت لكل صورة)`);
-        }
-};
+const PROJECT_UPDATE_FIELDS = [
+        "title",
+        "shortDescription",
+        "description",
+        "category",
+        "targetAmount",
+        "status",
+        "isActive",
+        "isClosed",
+];
 
 const normalizeProjectImageInput = (image) => {
         if (typeof image === "string") {
                 const trimmed = image.trim();
-                return trimmed ? { url: trimmed, fileId: null } : null;
+                return trimmed ? { url: trimmed } : null;
         }
 
         if (image && typeof image === "object") {
                 const url = typeof image.url === "string" ? image.url.trim() : "";
-                const fileId = typeof image.fileId === "string" ? image.fileId : null;
-                return url ? { url, fileId } : null;
+                return url ? { url } : null;
         }
 
         return null;
 };
 
-const uploadProjectImages = async (images = []) => {
+const uploadProjectImages = async (images = [], existingFileIdsByUrl = new Map()) => {
         if (!Array.isArray(images)) {
                 throw createHttpError(400, "صيغة صور المشروع غير صالحة");
         }
@@ -51,19 +46,28 @@ const uploadProjectImages = async (images = []) => {
                 throw createHttpError(400, "يجب رفع ما بين 3 إلى 5 صور للمشروع");
         }
 
-        const uploads = [];
+        const assets = [];
+        const uploadedFileIds = [];
 
-        for (const image of validImages) {
-                if (image.url.startsWith("data:")) {
-                        assertImageSizeWithinLimit(image.url, "حجم الصورة");
-                        const uploadResult = await uploadImage(image.url, "projects");
-                        uploads.push({ url: uploadResult.url, fileId: uploadResult.fileId });
-                } else {
-                        uploads.push({ url: image.url, fileId: image.fileId || null });
+        try {
+                for (const image of validImages) {
+                        if (image.url.startsWith("data:")) {
+                                const uploadResult = await uploadSanitizedImage(image.url, "projects");
+                                assets.push({ url: uploadResult.url, fileId: uploadResult.fileId });
+                                uploadedFileIds.push(uploadResult.fileId);
+                        } else {
+                                if (!existingFileIdsByUrl.has(image.url)) {
+                                        throw createHttpError(400, "مرجع صورة المشروع غير صالح");
+                                }
+                                assets.push({ url: image.url, fileId: existingFileIdsByUrl.get(image.url) || null });
+                        }
                 }
+        } catch (error) {
+                await cleanupImageIds(uploadedFileIds);
+                throw error;
         }
 
-        return uploads;
+        return { assets, uploadedFileIds };
 };
 
 const buildTotalsMap = (totals = []) => {
@@ -91,6 +95,7 @@ const enrichProject = (project, totalsMap) => {
 };
 
 export const createProject = async (req, res) => {
+        let uploadedFileIds = [];
         try {
                 const {
                         title,
@@ -104,7 +109,9 @@ export const createProject = async (req, res) => {
                         isClosed = false,
                 } = req.body;
 
-                const uploadedImages = await uploadProjectImages(images);
+                const uploadBatch = await uploadProjectImages(images);
+                const uploadedImages = uploadBatch.assets;
+                uploadedFileIds = uploadBatch.uploadedFileIds;
 
                 const project = await Project.create({
                         title,
@@ -122,15 +129,19 @@ export const createProject = async (req, res) => {
 
                 res.status(201).json(project);
         } catch (error) {
+                await cleanupImageIds(uploadedFileIds);
                 const status = error.status || 500;
                 if (status >= 500) {
-                        console.log("Error creating project", error.message);
+                        console.log("Error creating project");
                 }
-                res.status(status).json({ message: "تعذّر إنشاء المشروع", error: error.message });
+                res.status(status).json({ message: "تعذّر إنشاء المشروع" });
         }
 };
 
 export const updateProject = async (req, res) => {
+        let uploadedFileIds = [];
+        let previousFileIdsToDelete = [];
+        let persisted = false;
         try {
                 const project = await Project.findById(req.params.id);
 
@@ -138,36 +149,43 @@ export const updateProject = async (req, res) => {
                         return res.status(404).json({ message: "المشروع غير موجود" });
                 }
 
-                const { images, ...updates } = req.body || {};
+                const { images } = req.body || {};
 
                 if (images !== undefined) {
                         const previousFileIds = (project.images || []).map((img) => img.fileId).filter(Boolean);
-                        const uploadedImages = await uploadProjectImages(images);
-                        const newFileIds = new Set(uploadedImages.map((img) => img.fileId).filter(Boolean));
-                        const toDelete = previousFileIds.filter((fileId) => !newFileIds.has(fileId));
-
-                        if (toDelete.length) {
-                                await Promise.all(toDelete.map((fileId) => deleteImage(fileId)));
+                        const existingFileIdsByUrl = new Map(
+                                (project.images || []).map((image) => [image.url, image.fileId || null]),
+                        );
+                        if (project.imageUrl && !existingFileIdsByUrl.has(project.imageUrl)) {
+                                existingFileIdsByUrl.set(project.imageUrl, project.imageFileId || null);
                         }
+                        const uploadBatch = await uploadProjectImages(images, existingFileIdsByUrl);
+                        const uploadedImages = uploadBatch.assets;
+                        uploadedFileIds = uploadBatch.uploadedFileIds;
+                        const newFileIds = new Set(uploadedImages.map((img) => img.fileId).filter(Boolean));
+                        previousFileIdsToDelete = previousFileIds.filter((fileId) => !newFileIds.has(fileId));
 
                         project.images = uploadedImages;
                         project.imageUrl = uploadedImages[0]?.url || "";
                         project.imageFileId = uploadedImages[0]?.fileId || null;
                 }
 
-                Object.entries(updates).forEach(([key, value]) => {
-                        project[key] = value;
+                PROJECT_UPDATE_FIELDS.forEach((key) => {
+                        if (req.body?.[key] !== undefined) project[key] = req.body[key];
                 });
 
                 await project.save();
+                persisted = true;
+                await cleanupImageIds(previousFileIdsToDelete);
 
                 res.json(project);
         } catch (error) {
+                if (!persisted) await cleanupImageIds(uploadedFileIds);
                 const status = error.status || 500;
                 if (status >= 500) {
-                        console.log("Error updating project", error.message);
+                        console.log("Error updating project");
                 }
-                res.status(status).json({ message: "تعذّر تحديث المشروع", error: error.message });
+                res.status(status).json({ message: "تعذّر تحديث المشروع" });
         }
 };
 
@@ -187,8 +205,8 @@ export const getProjects = async (_req, res) => {
 
                 res.json(projectsWithStats);
         } catch (error) {
-                console.log("Error fetching projects", error.message);
-                res.status(500).json({ message: "تعذّر تحميل المشاريع", error: error.message });
+                console.log("Error fetching projects");
+                res.status(500).json({ message: "تعذّر تحميل المشاريع" });
         }
 };
 
@@ -243,7 +261,7 @@ export const getProjectById = async (req, res) => {
                         paymentBreakdown,
                 });
         } catch (error) {
-                console.log("Error fetching project", error.message);
-                res.status(500).json({ message: "تعذّر تحميل تفاصيل المشروع", error: error.message });
+                console.log("Error fetching project");
+                res.status(500).json({ message: "تعذّر تحميل تفاصيل المشروع" });
         }
 };

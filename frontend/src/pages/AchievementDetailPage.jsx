@@ -75,7 +75,7 @@ const AchievementDetailPage = () => {
                         try {
                                 const data = await apiClient.get(`/achievements/${id}`);
                                 setAchievement(data);
-                        } catch (error) {
+                        } catch {
                                 toast.error("تعذّر تحميل تفاصيل الإنجاز");
                                 navigate("/achievements");
                         }

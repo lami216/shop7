@@ -43,7 +43,7 @@ export const getSiteStatistics = async (_req, res) => {
                         completedProjects,
                 });
         } catch (error) {
-                console.log("Error building statistics", error.message);
-                res.status(500).json({ message: "تعذّر تحميل الإحصائيات", error: error.message });
+                console.log("Error building statistics");
+                res.status(500).json({ message: "تعذّر تحميل الإحصائيات" });
         }
 };

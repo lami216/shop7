@@ -1,16 +1,38 @@
 import Donation from "../models/donation.model.js";
 import PaymentMethod from "../models/paymentMethod.model.js";
 import Project from "../models/project.model.js";
-import { uploadImage } from "../lib/imagekit.js";
+import { deleteImage, uploadImage } from "../lib/imagekit.js";
+import { cleanupImageOrQueue } from "../lib/imageCleanupQueue.js";
+import mongoose from "mongoose";
 
 const buildBase64FromFile = (file) => {
         if (!file?.buffer) return null;
         return `data:${file.mimetype};base64,${file.buffer.toString("base64")}`;
 };
 
+const MAX_DONATION_AMOUNT = 1_000_000_000;
+const DONATION_AMOUNT_PATTERN = /^(?:0|[1-9]\d{0,9})(?:\.\d{1,2})?$/;
+const isValidDonationAmount = (rawAmount, numericAmount) => {
+        const normalized = typeof rawAmount === "number"
+                ? String(rawAmount)
+                : (typeof rawAmount === "string" ? rawAmount.trim() : "");
+        return DONATION_AMOUNT_PATTERN.test(normalized)
+                && Number.isFinite(numericAmount)
+                && numericAmount > 0
+                && numericAmount <= MAX_DONATION_AMOUNT;
+};
+
 export const createDonation = async (req, res) => {
         try {
                 const { projectId, paymentMethodId, amount, donorName, donorPhone } = req.body;
+                const numericAmount = Number(amount);
+
+                if (!isValidDonationAmount(amount, numericAmount)) {
+                        return res.status(400).json({ message: "مبلغ التبرع غير صالح" });
+                }
+                if (!mongoose.isValidObjectId(projectId) || !mongoose.isValidObjectId(paymentMethodId)) {
+                        return res.status(400).json({ message: "معرّف المشروع أو وسيلة الدفع غير صالح" });
+                }
 
                 const [project, paymentMethod] = await Promise.all([
                         Project.findById(projectId),
@@ -19,6 +41,9 @@ export const createDonation = async (req, res) => {
 
                 if (!project) {
                         return res.status(404).json({ message: "المشروع غير موجود" });
+                }
+                if (project.isClosed || project.isActive === false || project.status !== "active") {
+                        return res.status(400).json({ message: "المشروع غير متاح للتبرع" });
                 }
 
                 if (!paymentMethod || !paymentMethod.isActive) {
@@ -30,7 +55,7 @@ export const createDonation = async (req, res) => {
                         projectId,
                         paymentMethod: paymentMethodId,
                         paymentApp: paymentMethod.name,
-                        amount,
+                        amount: numericAmount,
                         donorName,
                         payerName: donorName,
                         donorPhone,
@@ -43,56 +68,84 @@ export const createDonation = async (req, res) => {
                         paymentMethod,
                 });
         } catch (error) {
-                console.log("Error creating donation", error.message);
-                res.status(500).json({ message: "تعذّر تسجيل التبرع", error: error.message });
+                if (error.name === "ValidationError") {
+                        return res.status(400).json({ message: "بيانات التبرع غير صالحة" });
+                }
+                console.log("Error creating donation");
+                return res.status(500).json({ message: "تعذّر تسجيل التبرع" });
         }
 };
 
 export const createDonationWithReceipt = async (req, res) => {
+        let uploadedReceiptFileId = null;
         try {
-                const { projectId, amount, paymentApp, payerName, phone, projectNumber, paymentMethodId } = req.body;
+                const { projectId, amount, payerName, phone, projectNumber, paymentMethodId } = req.body;
                 const { file } = req;
+                const numericAmount = Number(amount);
+
+                if (!isValidDonationAmount(amount, numericAmount)) {
+                        return res.status(400).json({ message: "مبلغ التبرع غير صالح" });
+                }
+                if (!mongoose.isValidObjectId(projectId) || !mongoose.isValidObjectId(paymentMethodId)) {
+                        return res.status(400).json({ message: "معرّف المشروع أو وسيلة الدفع غير صالح" });
+                }
 
                 const project = await Project.findById(projectId);
                 if (!project) {
                         return res.status(404).json({ message: "المشروع غير موجود" });
                 }
+                if (project.isClosed || project.isActive === false || project.status !== "active") {
+                        return res.status(400).json({ message: "المشروع غير متاح للتبرع" });
+                }
 
-                const paymentMethod = paymentMethodId ? await PaymentMethod.findById(paymentMethodId) : null;
-                if (paymentMethod && paymentMethod.isActive === false) {
+                if (!paymentMethodId) {
+                        return res.status(400).json({ message: "وسيلة الدفع مطلوبة" });
+                }
+
+                const paymentMethod = await PaymentMethod.findById(paymentMethodId);
+                if (!paymentMethod || paymentMethod.isActive === false) {
                         return res.status(400).json({ message: "وسيلة الدفع غير متاحة" });
                 }
 
-                let receiptImageUrl = "";
-                if (file) {
-                        const base64 = buildBase64FromFile(file);
-                        if (base64) {
-                                const uploadResult = await uploadImage(base64, "donation-receipts");
-                                receiptImageUrl = uploadResult.url;
-                        }
-                }
-
-                const donation = await Donation.create({
+                const donationPayload = {
                         project: projectId,
                         projectId,
-                        paymentMethod: paymentMethod?._id,
-                        paymentApp: paymentApp || paymentMethod?.name || "غير محدد",
-                        amount: Number(amount),
+                        paymentMethod: paymentMethod._id,
+                        paymentApp: paymentMethod.name,
+                        amount: numericAmount,
                         payerName,
                         donorName: payerName,
                         phone,
                         donorPhone: phone,
-                        receiptImageUrl,
+                        receiptImageUrl: "",
                         projectNumber,
-                });
+                };
+                await new Donation(donationPayload).validate();
+
+                if (file) {
+                        const base64 = buildBase64FromFile(file);
+                        if (base64) {
+                                const uploadResult = await uploadImage(base64, "donation-receipts");
+                                donationPayload.receiptImageUrl = uploadResult.url;
+                                uploadedReceiptFileId = uploadResult.fileId;
+                        }
+                }
+
+                const donation = await Donation.create(donationPayload);
 
                 return res.status(201).json({
                         donation,
                         message: "تم تسجيل التبرع بنجاح",
                 });
         } catch (error) {
-                console.log("Error creating donation with receipt", error.message);
-                res.status(500).json({ message: "تعذّر تسجيل التبرع", error: error.message });
+                if (uploadedReceiptFileId) {
+                        await cleanupImageOrQueue(uploadedReceiptFileId, { deleteImageFn: deleteImage });
+                }
+                if (error.name === "ValidationError") {
+                        return res.status(400).json({ message: "بيانات التبرع غير صالحة" });
+                }
+                console.log("Error creating donation with receipt");
+                return res.status(500).json({ message: "تعذّر تسجيل التبرع" });
         }
 };
 
@@ -106,18 +159,21 @@ export const getDonations = async (_req, res) => {
 
                 res.json(donations);
         } catch (error) {
-                console.log("Error fetching donations", error.message);
-                res.status(500).json({ message: "تعذّر تحميل التبرعات", error: error.message });
+                console.log("Error fetching donations");
+                res.status(500).json({ message: "تعذّر تحميل التبرعات" });
         }
 };
 
 export const updateDonationStatus = async (req, res) => {
         try {
                 const { status } = req.body;
-                const allowedStatuses = ["pending", "confirmed", "rejected"];
+                const allowedStatuses = ["confirmed", "rejected"];
 
                 if (!allowedStatuses.includes(status)) {
                         return res.status(400).json({ message: "حالة التبرع غير صالحة" });
+                }
+                if (!mongoose.isValidObjectId(req.params.id)) {
+                        return res.status(400).json({ message: "معرّف التبرع غير صالح" });
                 }
 
                 const donation = await Donation.findByIdAndUpdate(req.params.id, { status }, { new: true })
@@ -130,7 +186,7 @@ export const updateDonationStatus = async (req, res) => {
 
                 res.json(donation);
         } catch (error) {
-                console.log("Error updating donation status", error.message);
-                res.status(500).json({ message: "تعذّر تحديث حالة التبرع", error: error.message });
+                console.log("Error updating donation status");
+                res.status(500).json({ message: "تعذّر تحديث حالة التبرع" });
         }
 };

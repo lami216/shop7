@@ -8,6 +8,14 @@ const achievementSchema = new mongoose.Schema(
                 date: { type: Date, required: true },
                 location: { type: String, trim: true },
                 images: { type: [String], default: [] },
+                imageFileIds: { type: [String], default: [] },
+                imageAssets: {
+                        type: [{
+                                url: { type: String, required: true },
+                                fileId: { type: String, default: null },
+                        }],
+                        default: [],
+                },
                 videos: { type: [String], default: [] },
                 showOnHome: { type: Boolean, default: false },
         },

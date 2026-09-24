@@ -1,5 +1,5 @@
 import PaymentMethod from "../models/paymentMethod.model.js";
-import { deleteImage, uploadImage } from "../lib/imagekit.js";
+import { cleanupImageIds, uploadSanitizedImage } from "../lib/imageAssets.js";
 
 const createHttpError = (status, message) => {
         const error = new Error(message);
@@ -12,13 +12,17 @@ const uploadPaymentImage = async (image) => {
                 throw createHttpError(400, "صيغة شعار وسيلة الدفع غير صالحة");
         }
 
-        return uploadImage(image, "payment-methods");
+        return uploadSanitizedImage(image, "payment-methods");
 };
 
+const PAYMENT_METHOD_UPDATE_FIELDS = ["name", "accountNumber", "isActive"];
+
 export const createPaymentMethod = async (req, res) => {
+        let uploadedFileId = null;
         try {
                 const { name, accountNumber, image, isActive } = req.body;
                 const uploadResult = await uploadPaymentImage(image);
+                uploadedFileId = uploadResult.fileId;
                 const method = await PaymentMethod.create({
                         name,
                         accountNumber,
@@ -28,11 +32,12 @@ export const createPaymentMethod = async (req, res) => {
                 });
                 res.status(201).json(method);
         } catch (error) {
+                await cleanupImageIds([uploadedFileId]);
                 const status = error.status || 500;
                 if (status >= 500) {
-                        console.log("Error creating payment method", error.message);
+                        console.log("Error creating payment method");
                 }
-                res.status(status).json({ message: "تعذّر إضافة وسيلة الدفع", error: error.message });
+                res.status(status).json({ message: "تعذّر إضافة وسيلة الدفع" });
         }
 };
 
@@ -43,12 +48,15 @@ export const getPaymentMethods = async (req, res) => {
                 const methods = await PaymentMethod.find(filter).sort({ createdAt: -1 }).lean();
                 res.json(methods);
         } catch (error) {
-                console.log("Error fetching payment methods", error.message);
-                res.status(500).json({ message: "تعذّر تحميل وسائل الدفع", error: error.message });
+                console.log("Error fetching payment methods");
+                res.status(500).json({ message: "تعذّر تحميل وسائل الدفع" });
         }
 };
 
 export const updatePaymentMethod = async (req, res) => {
+        let uploadedFileId = null;
+        let previousFileId = null;
+        let persisted = false;
         try {
                 const method = await PaymentMethod.findById(req.params.id);
 
@@ -56,38 +64,38 @@ export const updatePaymentMethod = async (req, res) => {
                         return res.status(404).json({ message: "وسيلة الدفع غير موجودة" });
                 }
 
-                const { image, ...updates } = req.body || {};
+                const { image } = req.body || {};
 
                 if (image !== undefined) {
                         if (image) {
                                 const uploadResult = await uploadPaymentImage(image);
-                                if (method.imageFileId) {
-                                        await deleteImage(method.imageFileId);
-                                }
+                                uploadedFileId = uploadResult.fileId;
+                                previousFileId = method.imageFileId;
                                 method.imageUrl = uploadResult.url;
                                 method.imageFileId = uploadResult.fileId;
                         } else {
-                                if (method.imageFileId) {
-                                        await deleteImage(method.imageFileId);
-                                }
+                                previousFileId = method.imageFileId;
                                 method.imageUrl = "";
                                 method.imageFileId = null;
                         }
                 }
 
-                Object.entries(updates).forEach(([key, value]) => {
-                        method[key] = value;
+                PAYMENT_METHOD_UPDATE_FIELDS.forEach((key) => {
+                        if (req.body?.[key] !== undefined) method[key] = req.body[key];
                 });
 
                 await method.save();
+                persisted = true;
+                await cleanupImageIds([previousFileId]);
 
                 res.json(method);
         } catch (error) {
+                if (!persisted) await cleanupImageIds([uploadedFileId]);
                 const status = error.status || 500;
                 if (status >= 500) {
-                        console.log("Error updating payment method", error.message);
+                        console.log("Error updating payment method");
                 }
-                res.status(status).json({ message: "تعذّر تحديث وسيلة الدفع", error: error.message });
+                res.status(status).json({ message: "تعذّر تحديث وسيلة الدفع" });
         }
 };
 
@@ -100,12 +108,12 @@ export const deletePaymentMethod = async (req, res) => {
                 }
 
                 if (method.imageFileId) {
-                        await deleteImage(method.imageFileId);
+                        await cleanupImageIds([method.imageFileId]);
                 }
 
                 res.json({ message: "تم حذف وسيلة الدفع" });
         } catch (error) {
-                console.log("Error deleting payment method", error.message);
-                res.status(500).json({ message: "تعذّر حذف وسيلة الدفع", error: error.message });
+                console.log("Error deleting payment method");
+                res.status(500).json({ message: "تعذّر حذف وسيلة الدفع" });
         }
 };
